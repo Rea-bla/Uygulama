@@ -7,6 +7,8 @@ interface Result {
   price: number
   url: string
   image_url: string
+  rating?: number
+  review_count?: number
 }
 
 const SITE_COLORS: Record<string, string> = {
@@ -21,6 +23,14 @@ const SITE_COLORS: Record<string, string> = {
 
 const STORAGE_OPTIONS = ['64 GB', '128 GB', '256 GB', '512 GB', '1 TB']
 const SITE_OPTIONS = ['Trendyol', 'Hepsiburada', 'Amazon TR', 'MediaMarkt', 'Vatan Bilgisayar', 'Teknosa', 'n11']
+
+const SORT_OPTIONS = [
+  { id: 'popularity', label: 'Popülerlik', disabled: false },
+  { id: 'price_asc', label: 'En Düşük Fiyat', disabled: false },
+  { id: 'price_desc', label: 'En Yüksek Fiyat', disabled: false },
+  { id: 'rating', label: 'En Yüksek Puan', disabled: false },
+  { id: 'newest', label: 'En Yeniler (Yakında)', disabled: true },
+] as const;
 
 function FilterSection({ title, isOpen, onToggle, children, badgeCount }: {
   title: string
@@ -62,11 +72,12 @@ export default function Home() {
 
   const [selectedStorage, setSelectedStorage] = useState<string>('')
   const [selectedSites, setSelectedSites]     = useState<string[]>([])
-  const [sortOrder, setSortOrder]             = useState<'asc' | 'desc'>('asc')
+  const [sortOrder, setSortOrder]             = useState<string>('popularity')
   const [minPrice, setMinPrice]               = useState('')
   const [maxPrice, setMaxPrice]               = useState('')
 
   const [openSite, setOpenSite]       = useState(true)
+  const [openSort, setOpenSort]       = useState(true)
   const [openPrice, setOpenPrice]     = useState(true)
   const [openStorage, setOpenStorage] = useState(false)
 
@@ -79,8 +90,9 @@ export default function Home() {
       const fullQuery = selectedStorage
         ? `${query.trim()} ${selectedStorage}`
         : query.trim()
+      const sitesParam = selectedSites.length > 0 ? `&sites=${encodeURIComponent(selectedSites.join(','))}` : ''
       const res = await fetch(
-        `http://127.0.0.1:8000/api/v1/search?q=${encodeURIComponent(fullQuery)}&limit=200`
+        `http://localhost:8000/api/v1/search?q=${encodeURIComponent(fullQuery)}&limit=200${sitesParam}`
       )
       if (!res.ok) {
         console.error('API hatasi:', res.status)
@@ -95,15 +107,28 @@ export default function Home() {
     }
   }
 
-  const filteredResults = results
-    .filter(r => {
-      if (selectedSites.length > 0 && !selectedSites.includes(r.site)) return false
-      if (minPrice && r.price < parseFloat(minPrice)) return false
-      if (maxPrice && r.price > parseFloat(maxPrice)) return false
-      if (selectedStorage && !r.name.toLowerCase().includes(selectedStorage.toLowerCase())) return false
-      return true
+  const filteredResults = [...results].filter(r => {
+    if (minPrice && r.price < parseFloat(minPrice)) return false
+    if (maxPrice && r.price > parseFloat(maxPrice)) return false
+    if (selectedStorage && !r.name.toLowerCase().includes(selectedStorage.toLowerCase())) return false
+    return true
+  })
+
+  if (sortOrder === 'price_asc') {
+    filteredResults.sort((a, b) => a.price - b.price)
+  } else if (sortOrder === 'price_desc') {
+    filteredResults.sort((a, b) => b.price - a.price)
+  } else if (sortOrder === 'rating') {
+    filteredResults.sort((a, b) => {
+      const ratingDiff = (b.rating || 0) - (a.rating || 0)
+      if (ratingDiff !== 0) return ratingDiff
+      
+      const reviewDiff = (b.review_count || 0) - (a.review_count || 0)
+      if (reviewDiff !== 0) return reviewDiff
+      
+      return a.price - b.price
     })
-    .sort((a, b) => sortOrder === 'asc' ? a.price - b.price : b.price - a.price)
+  }
 
   const toggleSite = (site: string) => {
     setSelectedSites(prev =>
@@ -192,48 +217,55 @@ export default function Home() {
           </FilterSection>
 
           <FilterSection
-            title="Fiyat & Sıralama"
+            title={`Sırala: ${SORT_OPTIONS.find(o => o.id === sortOrder)?.label.replace(' (Yakında)', '')}`}
+            isOpen={openSort}
+            onToggle={() => setOpenSort(p => !p)}
+          >
+            <div className="flex flex-col gap-2">
+              {SORT_OPTIONS.map(opt => (
+                <label key={opt.id} className={`flex items-center gap-2 cursor-pointer group ${opt.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <input
+                    type="radio"
+                    name="sortOrder"
+                    checked={sortOrder === opt.id}
+                    onChange={() => !opt.disabled && setSortOrder(opt.id)}
+                    disabled={opt.disabled}
+                    className="accent-blue-600 w-4 h-4"
+                  />
+                  <span className={`text-sm transition ${opt.disabled ? 'text-gray-400' : 'text-gray-700 group-hover:text-blue-600'}`}>
+                    {opt.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </FilterSection>
+
+          <FilterSection
+            title="Fiyat Aralığı"
             isOpen={openPrice}
             onToggle={() => setOpenPrice(p => !p)}
             badgeCount={(minPrice || maxPrice) ? 1 : 0}
           >
-            <div className="flex flex-col gap-3">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1">Min TL</p>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={minPrice}
-                    onChange={e => setMinPrice(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                  />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500 mb-1">Max TL</p>
-                  <input
-                    type="number"
-                    placeholder="∞"
-                    value={maxPrice}
-                    onChange={e => setMaxPrice(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                  />
-                </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <p className="text-xs text-gray-500 mb-1">Min TL</p>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={minPrice}
+                  onChange={e => setMinPrice(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                />
               </div>
-              <div className="flex gap-1">
-                {(['asc', 'desc'] as const).map(val => (
-                  <button
-                    key={val}
-                    onClick={() => setSortOrder(val)}
-                    className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition ${
-                      sortOrder === val
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
-                    }`}
-                  >
-                    {val === 'asc' ? '↑ En Ucuz' : '↓ En Pahalı'}
-                  </button>
-                ))}
+              <div className="flex-1">
+                <p className="text-xs text-gray-500 mb-1">Max TL</p>
+                <input
+                  type="number"
+                  placeholder="∞"
+                  value={maxPrice}
+                  onChange={e => setMaxPrice(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                />
               </div>
             </div>
           </FilterSection>
@@ -307,7 +339,7 @@ export default function Home() {
                   <span className="ml-2 text-gray-400">{filteredResults.length} sonuç</span>
                 </p>
                 <p className="text-xs text-gray-400">
-                  {sortOrder === 'asc' ? 'En ucuzdan pahalıya' : 'En pahalıdan ucuza'}
+                  Sıralama: {SORT_OPTIONS.find(o => o.id === sortOrder)?.label.replace(' (Yakında)', '')}
                 </p>
               </div>
 
@@ -337,6 +369,13 @@ export default function Home() {
                       </span>
                     </div>
                     <div className="text-right flex-shrink-0">
+                      {r.rating && r.rating > 0 ? (
+                        <div className="flex items-center justify-end gap-1 mb-0.5">
+                          <span className="text-yellow-500 text-[10px]">⭐</span>
+                          <span className="text-xs font-semibold text-gray-700">{r.rating}</span>
+                          {r.review_count ? <span className="text-[10px] text-gray-400">({r.review_count})</span> : null}
+                        </div>
+                      ) : null}
                       <p className="text-blue-600 font-bold text-base whitespace-nowrap">
                         {formatPrice(r.price)} TL
                       </p>

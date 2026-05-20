@@ -116,6 +116,25 @@ class HepsiburadaScraper(AbstractScraper):
                             if img_el:
                                 img_url = img_el.get("data-src") or img_el.get("src") or ""
 
+                            # --- PUAN ---
+                            rating = 0.0
+                            review_count = 0
+                            try:
+                                rating_el = card.select_one("[class*='rating-star'], [class*='starRating'], [data-test-id*='rating']")
+                                if rating_el:
+                                    t = rating_el.get_text(strip=True).replace(',', '.')
+                                    if t: 
+                                        match = re.search(r"[\d.]+", t)
+                                        if match: rating = float(match.group())
+                                
+                                review_el = card.select_one("[class*='reviewCount'], [data-test-id*='review'], [class*='comments']")
+                                if review_el:
+                                    t = review_el.get_text(strip=True)
+                                    t_clean = re.sub(r'\D', '', t)
+                                    if t_clean: review_count = int(t_clean)
+                            except:
+                                pass
+
                             seen_urls.add(href)
                             results.append(ProductPrice(
                                 site=self.SITE_NAME,
@@ -123,6 +142,8 @@ class HepsiburadaScraper(AbstractScraper):
                                 price=price,
                                 url=full_url,
                                 image_url=img_url,
+                                rating=rating,
+                                review_count=review_count
                             ))
 
                         except Exception as e:

@@ -56,6 +56,26 @@ class TrendyolScraper(AbstractScraper):
                         price      = self._parse_price(price_text)
                         img        = await img_el.get_attribute("src") if img_el else ""
 
+                        # Puan ve Değerlendirme Sayısı Çıkarma
+                        rating_text = await parent.evaluate("""el => {
+                            let r = el.querySelector('.rating-score');
+                            return r ? r.innerText.trim() : '0';
+                        }""")
+                        review_count_text = await parent.evaluate("""el => {
+                            let c = el.querySelector('.ratingCount');
+                            return c ? c.innerText.trim() : '0';
+                        }""")
+                        
+                        try:
+                            rating = float(rating_text.replace(',', '.'))
+                        except:
+                            rating = 0.0
+                            
+                        try:
+                            review_count = int(re.sub(r'\D', '', review_count_text))
+                        except:
+                            review_count = 0
+
                         # ✅ Linki JS ile card'dan yukarı çıkarak al
                         href = await card.evaluate("""el => {
                             let node = el;
@@ -93,6 +113,8 @@ class TrendyolScraper(AbstractScraper):
                                 price=price,
                                 url=href,
                                 image_url=img or "",
+                                rating=rating,
+                                review_count=review_count
                             ))
 
                     except Exception:

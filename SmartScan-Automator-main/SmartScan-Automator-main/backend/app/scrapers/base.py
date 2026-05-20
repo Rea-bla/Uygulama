@@ -12,6 +12,8 @@ class ProductPrice:
     image_url: str = "" # Ürün görseli
     in_stock: bool = True
     original_price: Optional[float] = None  # İndirimli değilse None
+    rating: float = 0.0                     # Ürün yıldız puanı
+    review_count: int = 0                   # Değerlendirme sayısı
 
 class AbstractScraper(ABC):
     SITE_NAME: str = ""

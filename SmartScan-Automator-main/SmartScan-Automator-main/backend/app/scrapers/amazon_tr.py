@@ -85,12 +85,40 @@ class AmazonTRScraper(AbstractScraper):
 
                     img = img_el.get("src", "") if img_el else ""
 
+                    # --- PUAN ---
+                    rating = 0.0
+                    review_count = 0
+                    try:
+                        rating_el = item.select_one(".a-icon-alt")
+                        if rating_el:
+                            t = rating_el.get_text(strip=True).replace(',', '.')
+                            match = re.search(r"([\d.]+)", t)
+                            if match: rating = float(match.group(1))
+
+                        review_el = item.select_one("[aria-label*='değerlendirme']")
+                        if review_el:
+                            t = review_el.get("aria-label", "")
+                            t_clean = re.sub(r'\D', '', t)
+                            if t_clean: review_count = int(t_clean)
+                        else:
+                            row = rating_el.find_parent("div", class_="a-row") if rating_el else None
+                            if row:
+                                rc_el = row.select_one("span.a-size-base.s-underline-text")
+                                if rc_el:
+                                    t = rc_el.get_text(strip=True)
+                                    t_clean = re.sub(r'\D', '', t)
+                                    if t_clean: review_count = int(t_clean)
+                    except:
+                        pass
+
                     results.append(ProductPrice(
                         site=self.SITE_NAME,
                         name=name,
                         price=price,
                         url=href,
                         image_url=img,
+                        rating=rating,
+                        review_count=review_count
                     ))
 
                 except Exception as e:
