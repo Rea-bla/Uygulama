@@ -1,8 +1,7 @@
-# GÜNCELLENMİŞ TEKNOSA.PY KODU
 import re
 from typing import Optional
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
+from curl_cffi import requests
 from app.scrapers.base import AbstractScraper, ProductPrice
 
 class TeknosaScraper(AbstractScraper):
@@ -14,90 +13,93 @@ class TeknosaScraper(AbstractScraper):
         url = f"{self.BASE_URL}/arama?q={query.replace(' ', '+')}"
 
         try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-                context = await browser.new_context(
-                    user_agent=(
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/124.0.0.0 Safari/537.36"
-                    ),
-                    locale="tr-TR",
-                )
-                page = await context.new_page()
-                await page.add_init_script(
-                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-                )
+            async with requests.AsyncSession(impersonate="chrome120") as session:
+                resp = await session.get(url, timeout=15)
+                soup = BeautifulSoup(resp.text, "lxml")
                 
-                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                await page.wait_for_timeout(4000)
-                content = await page.content()
-                await browser.close()
+                cards = soup.select("ul.prd > li") 
+                if not cards:
+                    cards = soup.select("div.prd-inner")
 
-            soup = BeautifulSoup(content, "lxml")
-            
-            # KARTLARI DAHA GENİŞ TUTALIM Kİ LİNKİ KAYBETMEYELİM
-            # div.prd-inner yerine direkt dıştaki kapsayıcıyı alıyoruz
-            cards = soup.select("ul.prd > li") 
-            if not cards:
-                cards = soup.select("div.prd-inner")
+                print(f"[Teknosa] {len(cards)} kart bulundu.")
 
-            print(f"[Teknosa] {len(cards)} kart bulundu.")
+                for card in cards[:50]:
+                    try:
+                        name_el  = card.select_one("h3.prd-title")
+                        price_el = card.select_one(".prd-prc2") or card.select_one(".prd-prc1") or card.select_one(".prd-prices")
+                        
+                        link_el  = card.select_one("a.prd-link") 
+                        if not link_el:
+                             link_el = card.find("a", href=True)
 
-            for card in cards[:50]:
-                try:
-                    name_el  = card.select_one("h3.prd-title")
-                    price_el = card.select_one(".prd-prc2") or card.select_one(".prd-prc1") or card.select_one(".prd-prices")
-                    
-                    # ÇÖZÜM: Linki bulmak için MediaMarkt taktiği (spesifik sınıf veya doğrudan href arama)
-                    link_el  = card.select_one("a.prd-link") 
-                    if not link_el:
-                         # Eğer a.prd-link yoksa, içinde href olan ilk a etiketini bul
-                         link_el = card.find("a", href=True)
+                        img_el   = card.select_one(".prd-media img") or card.select_one("img")
 
-                    img_el   = card.select_one(".prd-media img") or card.select_one("img")
+                        if not (name_el and price_el):
+                            continue
 
-                    if not (name_el and price_el):
-                        continue
+                        name_raw = name_el.get_text(separator=" ", strip=True)
+                        name = " ".join(name_raw.split())
+                        name = re.sub(r'(\d+)\s*(GB|TB)', r'\1 \2', name, flags=re.IGNORECASE)
+                        
+                        price = self._parse_price(price_el.get_text(strip=True))
+                        if price <= 0:
+                            continue
 
-                    name_raw = name_el.get_text(separator=" ", strip=True)
-                    name = " ".join(name_raw.split())
-                    name = re.sub(r'(\d+)\s*(GB|TB)', r'\1 \2', name, flags=re.IGNORECASE)
-                    
-                    price = self._parse_price(price_el.get_text(strip=True))
-                    if price <= 0:
-                        continue
+                        href = link_el["href"] if link_el and "href" in link_el.attrs else ""
+                        
+                        if href and not href.startswith("http"):
+                            href = self.BASE_URL + href
 
-                    # MEDIA MARKT STİLİ URL ÇEKME
-                    href = link_el["href"] if link_el and "href" in link_el.attrs else ""
-                    
-                    if href and not href.startswith("http"):
-                        href = self.BASE_URL + href
-
-                    img = ""
-                    if img_el:
-                        img = (
-                            img_el.get("data-srcset") 
-                            or img_el.get("data-src")
-                            or img_el.get("data-lazy-src")
-                            or img_el.get("src", "")
-                        )
-                    if img and "," in img:
-                        img = img.split(",")[0].split(" ")[0]
-                    if img and ("placeholder" in img or "data:image" in img):
                         img = ""
+                        if img_el:
+                            img = (
+                                img_el.get("data-srcset") 
+                                or img_el.get("data-src")
+                                or img_el.get("data-lazy-src")
+                                or img_el.get("src", "")
+                            )
+                        if img and "," in img:
+                            img = img.split(",")[0].split(" ")[0]
+                        if img and ("placeholder" in img or "data:image" in img):
+                            img = ""
 
-                    results.append(ProductPrice(
-                        site=self.SITE_NAME,
-                        name=name,
-                        price=price,
-                        url=href,
-                        image_url=img,
-                    ))
+                        rating = 0.0
+                        review_count = 0
+                        badge = ""
+                        
+                        # Seller / Badge
+                        seller_el = card.select_one(".prd-mrc")
+                        if seller_el:
+                            badge = f"Satıcı: {seller_el.get_text(strip=True)}"
+                        
+                        try:
+                            rating_el = card.select_one("[class*='rating'], [class*='star'], [class*='score'], [data-test*='rating'], [class*='Rating']")
+                            if rating_el:
+                                t = rating_el.get_text(strip=True).replace(',', '.')
+                                match = re.search(r"([\d.]+)", t)
+                                if match: rating = float(match.group(1))
+                            review_el = card.select_one("[class*='review'], [class*='comment'], [data-test*='review'], [class*='Count']")
+                            if review_el:
+                                t = review_el.get_text(strip=True)
+                                t_clean = re.sub(r'\D', '', t)
+                                if t_clean: review_count = int(t_clean)
+                        except:
+                            pass
 
-                except Exception as e:
-                    print(f"[Teknosa] Item parse hatası: {e}")
-                    continue
+                        results.append(ProductPrice(
+                            site=self.SITE_NAME,
+                            name=name,
+                            price=price,
+                            url=href,
+                            image_url=img,
+                            rating=rating,
+                            review_count=review_count,
+                            badge=badge
+                        ))
+
+                    except Exception as e:
+                        print(f"[Teknosa] Item parse hatası: {e}")
+                        continue
 
         except Exception as e:
             print(f"[Teknosa] Genel hata: {e}")

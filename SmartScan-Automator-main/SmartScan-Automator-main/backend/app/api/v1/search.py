@@ -14,6 +14,11 @@ CLOTHING_KEYWORDS = [
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
 
+import time
+
+CACHE = {}
+CACHE_TTL = 300
+
 @router.get("/search")
 async def search_products(
     q: str = "",
@@ -46,13 +51,29 @@ async def search_products(
             if not target_scrapers:
                 target_scrapers = ALL_SCRAPERS
 
-    tasks = [scraper.search(q) for scraper in target_scrapers]
+    tasks = []
+    scrapers_to_run = []
+    results = []
+    
+    current_time = time.time()
+    
+    for scraper in target_scrapers:
+        site_name = getattr(scraper, 'SITE_NAME', '')
+        cache_key = (q.lower(), site_name)
+        
+        if cache_key in CACHE and (current_time - CACHE[cache_key][0]) < CACHE_TTL:
+            results.extend(CACHE[cache_key][1])
+        else:
+            scrapers_to_run.append(scraper)
+            tasks.append(scraper.search(q))
+
     all_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    results = []
-    for site_results in all_results:
+    for i, site_results in enumerate(all_results):
         if isinstance(site_results, list):
             results.extend(site_results)
+            site_name = getattr(scrapers_to_run[i], 'SITE_NAME', '')
+            CACHE[(q.lower(), site_name)] = (current_time, site_results)
 
     search_terms = q.lower().split()
     filtered_results = []
@@ -76,6 +97,7 @@ async def search_products(
                 "in_stock": r.in_stock,
                 "rating": getattr(r, 'rating', 0.0),
                 "review_count": getattr(r, 'review_count', 0),
+                "badge": getattr(r, 'badge', ""),
             }
             for r in results[:limit_int]
         ]

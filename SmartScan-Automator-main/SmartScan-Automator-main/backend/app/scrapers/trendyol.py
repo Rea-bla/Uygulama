@@ -43,12 +43,11 @@ class TrendyolScraper(AbstractScraper):
                         )
 
                         name_el = await parent.query_selector(
-                            "[data-testid='product-card-name'], .product-name, [class*='name']"
+                            "[data-testid='product-card-name'], .product-name, [class*='name'], .prdct-desc-cntnr-name"
                         )
-                        price_el = await parent.query_selector(".price-value")
-                        if not price_el:
-                            price_el = await parent.query_selector(".single-price")
-
+                        
+                        price_el = await parent.query_selector(".prc-box-dscntd, .prc-box-sllng, .price-value, .single-price")
+                        
                         img_el = await card.query_selector("img")
 
                         name       = (await name_el.inner_text()).strip() if name_el else ""
@@ -107,6 +106,11 @@ class TrendyolScraper(AbstractScraper):
                             continue
 
                         if name and price > 0 and href:
+                            badge = await parent.evaluate("""el => {
+                                let b = el.querySelector('.prc-box-sllng, .stmp-box, .badge');
+                                return b ? b.innerText.trim() : '';
+                            }""")
+
                             results.append(ProductPrice(
                                 site=self.SITE_NAME,
                                 name=name,
@@ -114,7 +118,8 @@ class TrendyolScraper(AbstractScraper):
                                 url=href,
                                 image_url=img or "",
                                 rating=rating,
-                                review_count=review_count
+                                review_count=review_count,
+                                badge=badge
                             ))
 
                     except Exception:

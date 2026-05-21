@@ -14,6 +14,12 @@ class ProductPrice:
     original_price: Optional[float] = None  # İndirimli değilse None
     rating: float = 0.0                     # Ürün yıldız puanı
     review_count: int = 0                   # Değerlendirme sayısı
+    badge: str = ""                         # Satıcı, Kargo, Kampanya rozeti
+
+    def __post_init__(self):
+        # Hatalı çekilen (örneğin 104104 gibi) uçuk puanları filtrele
+        if self.rating > 5.0 or self.rating < 0.0:
+            self.rating = 0.0
 
 class AbstractScraper(ABC):
     SITE_NAME: str = ""

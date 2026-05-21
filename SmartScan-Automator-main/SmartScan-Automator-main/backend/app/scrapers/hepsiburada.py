@@ -120,7 +120,7 @@ class HepsiburadaScraper(AbstractScraper):
                             rating = 0.0
                             review_count = 0
                             try:
-                                rating_el = card.select_one("[class*='rating-star'], [class*='starRating'], [data-test-id*='rating']")
+                                rating_el = card.select_one("[class*='rating'], [class*='star'], [class*='score'], [data-test-id*='rating'], [class*='Rating']")
                                 if rating_el:
                                     t = rating_el.get_text(strip=True).replace(',', '.')
                                     if t: 
@@ -134,6 +134,14 @@ class HepsiburadaScraper(AbstractScraper):
                                     if t_clean: review_count = int(t_clean)
                             except:
                                 pass
+                                
+                            badge = ""
+                            try:
+                                badge_el = card.select_one(".merchantName, [class*='campaign'], [class*='badge']")
+                                if badge_el:
+                                    badge = badge_el.get_text(strip=True)
+                            except:
+                                pass
 
                             seen_urls.add(href)
                             results.append(ProductPrice(
@@ -143,7 +151,8 @@ class HepsiburadaScraper(AbstractScraper):
                                 url=full_url,
                                 image_url=img_url,
                                 rating=rating,
-                                review_count=review_count
+                                review_count=review_count,
+                                badge=badge
                             ))
 
                         except Exception as e:

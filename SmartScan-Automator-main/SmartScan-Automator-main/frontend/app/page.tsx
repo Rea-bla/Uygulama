@@ -9,6 +9,7 @@ interface Result {
   image_url: string
   rating?: number
   review_count?: number
+  badge?: string
 }
 
 const SITE_COLORS: Record<string, string> = {
@@ -364,6 +365,13 @@ export default function Home() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{r.name}</p>
+                      {r.badge && (
+                        <div className="mt-1">
+                          <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
+                            {r.badge}
+                          </span>
+                        </div>
+                      )}
                       <span className={`inline-block text-xs px-2 py-0.5 rounded-full mt-1 font-medium ${SITE_COLORS[r.site] || 'bg-gray-100 text-gray-600'}`}>
                         {r.site}
                       </span>

@@ -1,8 +1,8 @@
 import re
 from typing import Optional
-from playwright.async_api import async_playwright
+from curl_cffi import requests
+from bs4 import BeautifulSoup
 from app.scrapers.base import AbstractScraper, ProductPrice
-
 
 class N11Scraper(AbstractScraper):
     SITE_NAME = "n11"
@@ -13,43 +13,33 @@ class N11Scraper(AbstractScraper):
         url = f"{self.BASE_URL}/arama?q={query.replace(' ', '+')}"
 
         try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                context = await browser.new_context(
-                    user_agent=(
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/124.0.0.0 Safari/537.36"
-                    ),
-                    locale="tr-TR",
-                    timezone_id="Europe/Istanbul",
-                )
-                page = await context.new_page()
-                await page.add_init_script(
-                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-                )
-                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                await page.mouse.wheel(0, 1500)
-                await page.wait_for_timeout(3000)
-
-                items = await page.query_selector_all(".product-item")
+            async with requests.AsyncSession(impersonate="chrome120") as session:
+                resp = await session.get(url, timeout=15)
+                soup = BeautifulSoup(resp.text, "lxml")
+                
+                items = soup.select(".product-item, li.column")
                 print(f"[n11] {len(items)} ürün bulundu.")
 
                 for item in items[:20]:
                     try:
-                        # href doğrudan .product-item'ın attribute'unda
-                        href = await item.get_attribute("href") or ""
+                        if item.name == "a" and "href" in item.attrs:
+                            href = item["href"]
+                        else:
+                            link_el = item.select_one("a[href]")
+                            href = link_el["href"] if link_el else ""
+                            
+                        if href and not href.startswith("http"):
+                            href = self.BASE_URL + href
 
-                        name_el  = await item.query_selector(".product-item-title")
-                        price_el = await item.query_selector(".basket-price") or \
-                                   await item.query_selector(".price")
-                        img_el   = await item.query_selector(".product-item-image img")
+                        name_el  = item.select_one(".product-item-title, h3.productName")
+                        price_el = item.select_one(".price-currency, .newPrice, ins") or item.select_one(".basket-price, .price")
+                        img_el   = item.select_one(".product-item-image img, img.lazy")
 
                         if not (name_el and price_el):
                             continue
 
-                        name       = (await name_el.inner_text()).strip()
-                        price_text = (await price_el.inner_text()).strip()
+                        name       = name_el.get_text(strip=True)
+                        price_text = price_el.get_text(strip=True)
                         price      = self._parse_price(price_text)
 
                         if price <= 0:
@@ -58,10 +48,33 @@ class N11Scraper(AbstractScraper):
                         img = ""
                         if img_el:
                             img = (
-                                await img_el.get_attribute("src") or
-                                await img_el.get_attribute("data-src") or
+                                img_el.get("src") or
+                                img_el.get("data-src") or
+                                img_el.get("data-original") or
                                 ""
                             )
+
+                        rating = 0.0
+                        review_count = 0
+                        badge = ""
+                        
+                        try:
+                            badge_el = item.select_one(".badge, .campaign")
+                            if badge_el:
+                                badge = badge_el.get_text(strip=True)
+                                
+                            rating_el = item.select_one("[class*='rating'], [class*='star'], [class*='score'], [class*='Rating']")
+                            if rating_el:
+                                t = rating_el.get_text(strip=True).replace(',', '.')
+                                match = re.search(r"([\d.]+)", t)
+                                if match: rating = float(match.group(1))
+                            review_el = item.select_one("[class*='review'], [class*='comment'], [class*='Count']")
+                            if review_el:
+                                t = review_el.get_text(strip=True)
+                                t_clean = re.sub(r'\D', '', t)
+                                if t_clean: review_count = int(t_clean)
+                        except:
+                            pass
 
                         results.append(ProductPrice(
                             site=self.SITE_NAME,
@@ -69,13 +82,14 @@ class N11Scraper(AbstractScraper):
                             price=price,
                             url=href,
                             image_url=img,
+                            rating=rating,
+                            review_count=review_count,
+                            badge=badge
                         ))
 
                     except Exception as e:
                         print(f"[n11] Item parse hatası: {e}")
                         continue
-
-                await browser.close()
 
         except Exception as e:
             print(f"[n11] Genel hata: {e}")
@@ -86,19 +100,16 @@ class N11Scraper(AbstractScraper):
         return None
 
     def _parse_price(self, text: str) -> float:
-        # "49.326,85 TLSEPETTE47.526,85 TL" → ilk fiyatı al
-        # İlk sayı grubunu yakala: "49.326,85"
         match = re.search(r"[\d\.]+,\d+", text)
         if match:
-            raw = match.group(0)          # "49.326,85"
-            raw = raw.replace(".", "")    # "49326,85"
-            raw = raw.replace(",", ".")   # "49326.85"
+            raw = match.group(0)          
+            raw = raw.replace(".", "")    
+            raw = raw.replace(",", ".")   
             try:
                 return float(raw)
             except ValueError:
                 pass
 
-        # Fallback: "76.999 TL" gibi virgülsüz format
         match2 = re.search(r"[\d\.]+", text)
         if match2:
             raw = match2.group(0).replace(".", "")
