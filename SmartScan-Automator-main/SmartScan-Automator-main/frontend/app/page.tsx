@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface Result {
   site: string
   name: string
   price: number
+  original_price?: number
   url: string
   image_url: string
   rating?: number
@@ -12,14 +13,31 @@ interface Result {
   badge?: string
 }
 
+interface Favorite {
+  id: string
+  site: string
+  name: string
+  price: number
+  original_price?: number
+  url: string
+  image_url?: string
+  created_at: string
+}
+
+interface User {
+  id: string
+  email: string
+  full_name?: string
+}
+
 const SITE_COLORS: Record<string, string> = {
-  'Trendyol':         'bg-orange-100 text-orange-700',
-  'Hepsiburada':      'bg-blue-100 text-blue-700',
-  'Amazon TR':        'bg-yellow-100 text-yellow-700',
-  'MediaMarkt':       'bg-red-100 text-red-700',
-  'Vatan Bilgisayar': 'bg-indigo-100 text-indigo-700',
-  'Teknosa':          'bg-amber-100 text-amber-700',
-  'n11':              'bg-green-100 text-green-700'
+  'Trendyol':         'bg-orange-50 text-orange-700 border-orange-200',
+  'Hepsiburada':      'bg-blue-50 text-blue-700 border-blue-200',
+  'Amazon TR':        'bg-yellow-50 text-yellow-800 border-yellow-200',
+  'MediaMarkt':       'bg-red-50 text-red-700 border-red-200',
+  'Vatan Bilgisayar': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  'Teknosa':          'bg-amber-50 text-amber-800 border-amber-200',
+  'n11':              'bg-emerald-50 text-emerald-700 border-emerald-200'
 }
 
 const STORAGE_OPTIONS = ['64 GB', '128 GB', '256 GB', '512 GB', '1 TB']
@@ -33,6 +51,8 @@ const SORT_OPTIONS = [
   { id: 'newest', label: 'En Yeniler (Yakında)', disabled: true },
 ] as const;
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 function FilterSection({ title, isOpen, onToggle, children, badgeCount }: {
   title: string
   isOpen: boolean
@@ -41,23 +61,23 @@ function FilterSection({ title, isOpen, onToggle, children, badgeCount }: {
   badgeCount?: number
 }) {
   return (
-    <div className="border-b border-gray-200">
+    <div className="border-b border-gray-100 py-3">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between py-3 text-left hover:text-blue-600 transition"
+        className="w-full flex items-center justify-between py-2 text-left hover:text-blue-600 transition"
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-800">{title}</span>
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{title}</span>
           {badgeCount !== undefined && badgeCount > 0 && (
-            <span className="bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center leading-none">
+            <span className="bg-blue-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-5 h-5 flex items-center justify-center leading-none">
               {badgeCount}
             </span>
           )}
         </div>
-        <span className="text-gray-400 text-xs">{isOpen ? '▲' : '▼'}</span>
+        <span className="text-gray-400 text-[10px]">{isOpen ? '▲' : '▼'}</span>
       </button>
       {isOpen && (
-        <div className="pb-4">
+        <div className="pt-2 pb-1 animate-in fade-in slide-in-from-top-1 duration-150">
           {children}
         </div>
       )}
@@ -71,6 +91,7 @@ export default function Home() {
   const [loading, setLoading]   = useState(false)
   const [searched, setSearched] = useState(false)
 
+  // Filter States
   const [selectedStorage, setSelectedStorage] = useState<string>('')
   const [selectedSites, setSelectedSites]     = useState<string[]>([])
   const [sortOrder, setSortOrder]             = useState<string>('popularity')
@@ -82,27 +103,188 @@ export default function Home() {
   const [openPrice, setOpenPrice]     = useState(true)
   const [openStorage, setOpenStorage] = useState(false)
 
+  // Mobile responsiveness helper
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  // Auth States
+  const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authFullName, setAuthFullName] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+
+  // Favorites States
+  const [favorites, setFavorites] = useState<Favorite[]>([])
+  const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search')
+
+  // Load token & user details on mount
+  useEffect(() => {
+    const savedToken = localStorage.getItem('token')
+    if (savedToken) {
+      setToken(savedToken)
+      fetchUser(savedToken)
+      fetchFavorites(savedToken)
+    }
+  }, [])
+
+  const fetchUser = async (authToken: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUser(data)
+      } else {
+        // Token expired or invalid
+        handleLogout()
+      }
+    } catch (e) {
+      console.error('Kullanıcı bilgisi çekilemedi:', e)
+    }
+  }
+
+  const fetchFavorites = async (authToken: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/favorites`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setFavorites(data)
+      }
+    } catch (e) {
+      console.error('Favoriler çekilemedi:', e)
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    setToken(null)
+    setUser(null)
+    setFavorites([])
+    setActiveTab('search')
+  }
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthError('')
+    setAuthLoading(true)
+
+    const endpoint = authTab === 'register' ? 'register' : 'login'
+    const bodyPayload = authTab === 'register'
+      ? { email: authEmail, password: authPassword, full_name: authFullName }
+      : { email: authEmail, password: authPassword }
+
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(bodyPayload)
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || 'Bir hata oluştu')
+      }
+
+      // Successful login/register
+      localStorage.setItem('token', data.access_token)
+      setToken(data.access_token)
+      await fetchUser(data.access_token)
+      await fetchFavorites(data.access_token)
+      
+      // Reset & close modal
+      setShowAuthModal(false)
+      setAuthEmail('')
+      setAuthPassword('')
+      setAuthFullName('')
+    } catch (err: any) {
+      setAuthError(err.message || 'Sistem bağlantı hatası')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const toggleFavorite = async (item: Result) => {
+    if (!token) {
+      setAuthTab('login')
+      setShowAuthModal(true)
+      return
+    }
+
+    const isFav = favorites.some(f => f.url === item.url)
+    try {
+      if (isFav) {
+        // Remove favorite
+        const res = await fetch(`${API_URL}/api/v1/favorites?url=${encodeURIComponent(item.url)}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (res.ok) {
+          setFavorites(prev => prev.filter(f => f.url !== item.url))
+        }
+      } else {
+        // Add favorite
+        const res = await fetch(`${API_URL}/api/v1/favorites`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            site: item.site,
+            name: item.name,
+            price: item.price,
+            original_price: item.original_price,
+            url: item.url,
+            image_url: item.image_url
+          })
+        })
+        if (res.ok) {
+          const newFav = await res.json()
+          setFavorites(prev => [newFav, ...prev])
+        }
+      }
+    } catch (e) {
+      console.error('Favori kaydedilemedi/silinemedi:', e)
+    }
+  }
+
   const search = async () => {
     if (!query.trim()) return
     setLoading(true)
     setSearched(true)
     setResults([])
+    setActiveTab('search') // Switch to search results tab automatically
     try {
       const fullQuery = selectedStorage
         ? `${query.trim()} ${selectedStorage}`
         : query.trim()
       const sitesParam = selectedSites.length > 0 ? `&sites=${encodeURIComponent(selectedSites.join(','))}` : ''
       const res = await fetch(
-        `http://localhost:8000/api/v1/search?q=${encodeURIComponent(fullQuery)}&limit=200${sitesParam}`
+        `${API_URL}/api/v1/search?q=${encodeURIComponent(fullQuery)}&limit=200${sitesParam}`
       )
       if (!res.ok) {
-        console.error('API hatasi:', res.status)
+        console.error('API hatası:', res.status)
         return
       }
       const data = await res.json()
       setResults(data?.results || [])
     } catch (e) {
-      console.error('Arama hatasi:', e)
+      console.error('Arama hatası:', e)
     } finally {
       setLoading(false)
     }
@@ -131,6 +313,18 @@ export default function Home() {
     })
   }
 
+  // Filtered Favorites locally for search box
+  const filteredFavorites = favorites.filter(fav => {
+    if (query) {
+      const qLower = query.toLowerCase()
+      if (!fav.name.toLowerCase().includes(qLower)) return false
+    }
+    if (minPrice && fav.price < parseFloat(minPrice)) return false
+    if (maxPrice && fav.price > parseFloat(maxPrice)) return false
+    if (selectedSites.length > 0 && !selectedSites.includes(fav.site)) return false
+    return true
+  })
+
   const toggleSite = (site: string) => {
     setSelectedSites(prev =>
       prev.includes(site) ? prev.filter(s => s !== site) : [...prev, site]
@@ -149,38 +343,133 @@ export default function Home() {
   const hasActiveFilters = selectedSites.length > 0 || selectedStorage || minPrice || maxPrice
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans antialiased flex flex-col">
 
       {/* HEADER */}
-      <header className="border-b border-gray-200 bg-white px-8 py-4">
-        <div className="max-w-7xl mx-auto flex items-center gap-6">
-          <h1 className="text-xl font-bold text-gray-900 whitespace-nowrap">SmartScan Automator</h1>
-          <div className="flex-1 flex gap-2">
-            <input
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400"
-              placeholder="Ürün adı veya model no..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && search()}
-            />
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200/80 px-4 sm:px-6 py-3.5 shadow-sm">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⚡</span>
+              <h1 className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent whitespace-nowrap">
+                SmartScan Automator
+              </h1>
+            </div>
+            {/* Mobile login indicator */}
+            <div className="md:hidden flex items-center gap-2">
+              {user ? (
+                <button
+                  onClick={handleLogout}
+                  className="text-xs bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition font-medium"
+                >
+                  Çıkış
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setAuthTab('login'); setShowAuthModal(true); }}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium shadow-sm transition"
+                >
+                  Giriş
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* SEARCH FIELD */}
+          <div className="flex-1 flex gap-2 max-w-2xl w-full">
+            <div className="relative flex-1">
+              <input
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 pl-10 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-gray-900 placeholder-gray-400 bg-white transition shadow-inner"
+                placeholder="Ürün adı, model numarası arayın..."
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && search()}
+              />
+              <span className="absolute left-3.5 top-3 text-gray-400 text-sm">🔍</span>
+              {query && (
+                <button
+                  onClick={() => setQuery('')}
+                  className="absolute right-3.5 top-2.5 text-gray-400 hover:text-gray-600 text-sm font-semibold"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             <button
               onClick={search}
               disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition whitespace-nowrap"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 sm:px-7 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-blue-500/10 hover:shadow-blue-500/20 disabled:opacity-50 transition active:scale-95 whitespace-nowrap"
             >
               {loading ? 'Aranıyor...' : 'Ara'}
             </button>
           </div>
+
+          {/* DESKTOP MEMBERSHIP BUTTONS */}
+          <div className="hidden md:flex items-center gap-3">
+            {user ? (
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-xs text-gray-400">Hoş geldiniz</p>
+                  <p className="text-sm font-semibold text-gray-800">{user.full_name || user.email}</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 px-4 py-2 rounded-xl text-xs font-semibold transition active:scale-95"
+                >
+                  Güvenli Çıkış
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setAuthTab('login'); setShowAuthModal(true); }}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-md shadow-blue-500/10 transition active:scale-95"
+              >
+                Üye Girişi / Kayıt
+              </button>
+            )}
+          </div>
+          
         </div>
       </header>
 
-      {/* BODY */}
-      <div className="max-w-7xl mx-auto flex min-h-screen">
+      {/* MOBILE COLLAPSIBLE FILTER TOGGLE */}
+      <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between">
+        <button
+          onClick={() => setShowMobileFilters(!showMobileFilters)}
+          className="flex items-center gap-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3.5 py-2 rounded-lg transition"
+        >
+          <span>⚙️</span>
+          <span>{showMobileFilters ? 'Filtreleri Gizle' : 'Filtrele & Sırala'}</span>
+          {hasActiveFilters && (
+            <span className="bg-blue-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">!</span>
+          )}
+        </button>
+        {user && (
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => { setActiveTab('search'); setShowMobileFilters(false); }}
+              className={`text-xs font-semibold px-3 py-2 rounded-lg transition ${activeTab === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              Arama
+            </button>
+            <button
+              onClick={() => { setActiveTab('favorites'); setShowMobileFilters(false); }}
+              className={`text-xs font-semibold px-3 py-2 rounded-lg transition ${activeTab === 'favorites' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              Favorilerim ({favorites.length})
+            </button>
+          </div>
+        )}
+      </div>
 
-        {/* SOL FILTRE */}
-        <aside className="w-[240px] min-w-[240px] flex-shrink-0 border-r border-gray-200 px-5 pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-bold text-gray-900">Filtreler</p>
+      {/* BODY WRAPPER */}
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row min-h-screen w-full">
+
+        {/* SIDEBAR FILTERS */}
+        <aside className={`w-full lg:w-[260px] lg:min-w-[260px] flex-shrink-0 lg:border-r border-gray-200 px-5 pt-6 bg-white lg:bg-transparent ${showMobileFilters ? 'block border-b shadow-sm lg:shadow-none' : 'hidden lg:block'}`}>
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200">
+            <p className="text-sm font-extrabold text-gray-800 tracking-wider">FİLTRELER</p>
             {hasActiveFilters && (
               <button
                 onClick={() => {
@@ -189,51 +478,53 @@ export default function Home() {
                   setMinPrice('')
                   setMaxPrice('')
                 }}
-                className="text-xs text-blue-600 hover:text-blue-800 transition"
+                className="text-xs text-blue-600 hover:text-blue-800 transition font-semibold"
               >
                 Temizle
               </button>
             )}
           </div>
 
+          {/* SITE OPTIONS */}
           <FilterSection
-            title="Site"
+            title="SATIŞ NOKTASI"
             isOpen={openSite}
             onToggle={() => setOpenSite(p => !p)}
             badgeCount={selectedSites.length}
           >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1">
               {SITE_OPTIONS.map(site => (
-                <label key={site} className="flex items-center gap-2 cursor-pointer group">
+                <label key={site} className="flex items-center gap-2.5 cursor-pointer group">
                   <input
                     type="checkbox"
                     checked={selectedSites.includes(site)}
                     onChange={() => toggleSite(site)}
-                    className="accent-blue-600 w-4 h-4"
+                    className="accent-blue-600 w-4 h-4 rounded border-gray-300 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700 group-hover:text-blue-600 transition">{site}</span>
+                  <span className="text-sm text-gray-600 group-hover:text-blue-600 transition font-medium">{site}</span>
                 </label>
               ))}
             </div>
           </FilterSection>
 
+          {/* SORT OPTIONS */}
           <FilterSection
-            title={`Sırala: ${SORT_OPTIONS.find(o => o.id === sortOrder)?.label.replace(' (Yakında)', '')}`}
+            title="SIRALAMA"
             isOpen={openSort}
             onToggle={() => setOpenSort(p => !p)}
           >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               {SORT_OPTIONS.map(opt => (
-                <label key={opt.id} className={`flex items-center gap-2 cursor-pointer group ${opt.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <label key={opt.id} className={`flex items-center gap-2.5 cursor-pointer group ${opt.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <input
                     type="radio"
                     name="sortOrder"
                     checked={sortOrder === opt.id}
                     onChange={() => !opt.disabled && setSortOrder(opt.id)}
                     disabled={opt.disabled}
-                    className="accent-blue-600 w-4 h-4"
+                    className="accent-blue-600 w-4 h-4 border-gray-300 focus:ring-blue-500"
                   />
-                  <span className={`text-sm transition ${opt.disabled ? 'text-gray-400' : 'text-gray-700 group-hover:text-blue-600'}`}>
+                  <span className={`text-sm font-medium transition ${opt.disabled ? 'text-gray-400' : 'text-gray-600 group-hover:text-blue-600'}`}>
                     {opt.label}
                   </span>
                 </label>
@@ -241,161 +532,439 @@ export default function Home() {
             </div>
           </FilterSection>
 
+          {/* PRICE LIMITS */}
           <FilterSection
-            title="Fiyat Aralığı"
+            title="FİYAT ARALIĞI"
             isOpen={openPrice}
             onToggle={() => setOpenPrice(p => !p)}
             badgeCount={(minPrice || maxPrice) ? 1 : 0}
           >
             <div className="flex gap-2">
               <div className="flex-1">
-                <p className="text-xs text-gray-500 mb-1">Min TL</p>
+                <p className="text-[10px] font-bold text-gray-400 mb-1">MIN (TL)</p>
                 <input
                   type="number"
                   placeholder="0"
                   value={minPrice}
                   onChange={e => setMinPrice(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-blue-500 text-gray-900 bg-white"
                 />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-gray-500 mb-1">Max TL</p>
+                <p className="text-[10px] font-bold text-gray-400 mb-1">MAKS (TL)</p>
                 <input
                   type="number"
-                  placeholder="∞"
+                  placeholder="Sınırsız"
                   value={maxPrice}
                   onChange={e => setMaxPrice(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-blue-500 text-gray-900 bg-white"
                 />
               </div>
             </div>
           </FilterSection>
 
+          {/* STORAGE OPTIONS */}
           <FilterSection
-            title="Depolama"
+            title="DEPOLAMA"
             isOpen={openStorage}
             onToggle={() => setOpenStorage(p => !p)}
             badgeCount={selectedStorage ? 1 : 0}
           >
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               {STORAGE_OPTIONS.map(opt => (
-                <label key={opt} className="flex items-center gap-2 cursor-pointer group">
+                <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
                   <input
                     type="radio"
                     name="storage"
                     checked={selectedStorage === opt}
                     onChange={() => setSelectedStorage(opt)}
                     onClick={() => selectedStorage === opt && setSelectedStorage('')}
-                    className="accent-blue-600 w-4 h-4"
+                    className="accent-blue-600 w-4 h-4 border-gray-300 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700 group-hover:text-blue-600 transition">{opt}</span>
+                  <span className="text-sm text-gray-600 group-hover:text-blue-600 transition font-medium">{opt}</span>
                 </label>
               ))}
             </div>
           </FilterSection>
         </aside>
 
-        {/* SAG ICERIK */}
-        <main className="flex-1 min-w-0 px-8 pt-6 pb-10">
+        {/* MAIN PANEL CONTENT */}
+        <main className="flex-1 min-w-0 px-4 sm:px-8 pt-6 pb-10 flex flex-col">
 
-          {!searched && !loading && (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <p className="text-4xl mb-4">🔍</p>
-              <p className="text-lg font-semibold text-gray-700">Ne aramak istersiniz?</p>
-              <p className="text-sm text-gray-400 mt-1">
-                7 farklı siteden aynı anda fiyat karşılaştırması yapın
-              </p>
+          {/* DESKTOP TABS FOR SEARCH VS FAVORITES */}
+          {user && (
+            <div className="hidden lg:flex items-center gap-2 mb-6 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('search')}
+                className={`py-3 px-6 text-sm font-bold border-b-2 transition ${activeTab === 'search' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                🔎 Arama Sonuçları
+              </button>
+              <button
+                onClick={() => setActiveTab('favorites')}
+                className={`py-3 px-6 text-sm font-bold border-b-2 transition ${activeTab === 'favorites' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+              >
+                ★ Favorilerim ({favorites.length})
+              </button>
             </div>
           )}
 
-          {loading && (
-            <div className="flex flex-col gap-3">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 p-4 border border-gray-100 rounded-xl animate-pulse bg-white">
-                  <div className="w-16 h-16 bg-gray-200 rounded-lg flex-shrink-0" />
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <div className="h-3 bg-gray-200 rounded w-3/4" />
-                    <div className="h-3 bg-gray-200 rounded w-1/3" />
-                  </div>
-                  <div className="h-5 bg-gray-200 rounded w-24 flex-shrink-0" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!loading && searched && filteredResults.length === 0 && (
-            <div className="text-center py-20 text-gray-400">
-              <p className="text-5xl mb-4">😕</p>
-              <p className="text-lg font-medium text-gray-600">Sonuç bulunamadı</p>
-              <p className="text-sm mt-1">Farklı bir ürün adı deneyin veya filtreleri genişletin</p>
-            </div>
-          )}
-
-          {!loading && filteredResults.length > 0 && (
+          {activeTab === 'search' ? (
             <>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm text-gray-500">
-                  <span className="font-semibold text-gray-800">{query}</span>
-                  {selectedStorage && <span className="text-blue-600"> · {selectedStorage}</span>}
-                  <span className="ml-2 text-gray-400">{filteredResults.length} sonuç</span>
-                </p>
-                <p className="text-xs text-gray-400">
-                  Sıralama: {SORT_OPTIONS.find(o => o.id === sortOrder)?.label.replace(' (Yakında)', '')}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {filteredResults.map((r, i) => (
-                  <div
-                    key={i}
-                    onClick={() => handleClick(r.url)}
-                    className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-md transition cursor-pointer bg-white"
-                  >
-                    <div className="w-16 h-16 flex-shrink-0 bg-gray-50 rounded-lg flex items-center justify-center">
-                      {r.image_url ? (
-                        <img
-                          src={r.image_url}
-                          alt={r.name}
-                          className="w-full h-full object-contain rounded-lg"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                        />
-                      ) : (
-                        <span className="text-gray-300 text-xs">Görsel yok</span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{r.name}</p>
-                      {r.badge && (
-                        <div className="mt-1">
-                          <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
-                            {r.badge}
-                          </span>
-                        </div>
-                      )}
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full mt-1 font-medium ${SITE_COLORS[r.site] || 'bg-gray-100 text-gray-600'}`}>
-                        {r.site}
-                      </span>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      {r.rating && r.rating > 0 ? (
-                        <div className="flex items-center justify-end gap-1 mb-0.5">
-                          <span className="text-yellow-500 text-[10px]">⭐</span>
-                          <span className="text-xs font-semibold text-gray-700">{r.rating}</span>
-                          {r.review_count ? <span className="text-[10px] text-gray-400">({r.review_count})</span> : null}
-                        </div>
-                      ) : null}
-                      <p className="text-blue-600 font-bold text-base whitespace-nowrap">
-                        {formatPrice(r.price)} TL
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">Siteye git →</p>
-                    </div>
+              {/* DEFAULT IDLE STATE */}
+              {!searched && !loading && (
+                <div className="flex flex-col items-center justify-center my-auto py-20 text-center">
+                  <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-6 shadow-sm">
+                    🔍
                   </div>
-                ))}
-              </div>
+                  <h2 className="text-xl font-bold text-gray-800">Akıllı Fiyat Karşılaştırma</h2>
+                  <p className="text-sm text-gray-400 max-w-sm mt-2">
+                    7 farklı büyük e-ticaret platformunda anında tarama yapın, en ucuz fiyatı kaçırmayın!
+                  </p>
+                </div>
+              )}
+
+              {/* LOADING SKELTONS */}
+              {loading && (
+                <div className="flex flex-col gap-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 p-4 border border-gray-150 rounded-2xl animate-pulse bg-white">
+                      <div className="w-16 h-16 bg-gray-150 rounded-xl flex-shrink-0" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="h-3 bg-gray-150 rounded w-2/3" />
+                        <div className="h-3 bg-gray-150 rounded w-1/4" />
+                      </div>
+                      <div className="h-5 bg-gray-150 rounded w-20 flex-shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* NO RESULTS FOUND */}
+              {!loading && searched && filteredResults.length === 0 && (
+                <div className="text-center py-20 bg-white rounded-2xl border border-gray-150 p-6 max-w-lg mx-auto w-full my-auto shadow-sm">
+                  <div className="text-4xl mb-4">😕</div>
+                  <h3 className="text-lg font-bold text-gray-700">Ürün bulunamadı</h3>
+                  <p className="text-sm text-gray-400 mt-2">Farklı anahtar kelimeler girmeyi deneyin ya da filtreleri temizleyin.</p>
+                </div>
+              )}
+
+              {/* SEARCH RESULTS LIST */}
+              {!loading && filteredResults.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-xs text-gray-400">
+                      <span className="font-semibold text-gray-600">{query}</span> için 
+                      {selectedStorage && <span className="text-blue-600"> · {selectedStorage}</span>}
+                      <span className="ml-1 font-bold text-gray-600">{filteredResults.length} sonuç</span> listeleniyor
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3.5">
+                    {filteredResults.map((r, i) => {
+                      const isFavorited = favorites.some(f => f.url === r.url)
+                      return (
+                        <div
+                          key={i}
+                          className="flex flex-col sm:flex-row items-center gap-4 p-4 border border-gray-200 hover:border-blue-400 hover:shadow-md hover:shadow-blue-500/5 transition duration-200 rounded-2xl bg-white relative w-full group"
+                        >
+                          {/* PRODUCT IMAGE */}
+                          <div
+                            onClick={() => handleClick(r.url)}
+                            className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center p-1.5 cursor-pointer"
+                          >
+                            {r.image_url ? (
+                              <img
+                                src={r.image_url}
+                                alt={r.name}
+                                className="w-full h-full object-contain rounded-lg transition group-hover:scale-105"
+                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                              />
+                            ) : (
+                              <span className="text-gray-300 text-[10px] font-semibold uppercase">Görsel yok</span>
+                            )}
+                          </div>
+
+                          {/* TEXT INFO */}
+                          <div
+                            onClick={() => handleClick(r.url)}
+                            className="flex-1 min-w-0 w-full cursor-pointer"
+                          >
+                            <h3 className="text-sm font-bold text-gray-800 leading-snug group-hover:text-blue-600 transition truncate max-w-full">
+                              {r.name}
+                            </h3>
+                            
+                            {r.badge && (
+                              <div className="mt-1">
+                                <span className="text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md shadow-sm">
+                                  {r.badge}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${SITE_COLORS[r.site] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                {r.site}
+                              </span>
+                              {r.rating && r.rating > 0 ? (
+                                <div className="flex items-center gap-0.5">
+                                  <span className="text-yellow-400 text-xs">★</span>
+                                  <span className="text-[10px] font-extrabold text-gray-600">{r.rating}</span>
+                                  {r.review_count ? <span className="text-[9px] text-gray-400">({r.review_count})</span> : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {/* PRICE & ACTIONS */}
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center w-full sm:w-auto border-t sm:border-t-0 border-gray-100 pt-3 sm:pt-0 gap-2 flex-shrink-0">
+                            
+                            <div className="text-left sm:text-right">
+                              <p className="text-blue-600 font-black text-lg whitespace-nowrap">
+                                {formatPrice(r.price)} TL
+                              </p>
+                              {r.original_price && r.original_price > r.price && (
+                                <p className="text-xs text-gray-400 line-through">
+                                  {formatPrice(r.original_price)} TL
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* STAR FOR FAVORITING */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleFavorite(r)
+                                }}
+                                className={`p-2 rounded-xl border transition ${isFavorited ? 'bg-yellow-50 hover:bg-yellow-100 border-yellow-300 text-yellow-500 shadow-sm' : 'bg-gray-50 hover:bg-gray-100 border-gray-250 text-gray-400'}`}
+                              >
+                                {isFavorited ? '★' : '☆'}
+                              </button>
+                              
+                              <button
+                                onClick={() => handleClick(r.url)}
+                                className="bg-gray-900 hover:bg-blue-600 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition active:scale-95 shadow-sm"
+                              >
+                                Siteye Git →
+                              </button>
+                            </div>
+
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            // FAVORITES VIEW TAB
+            <>
+              {filteredFavorites.length === 0 ? (
+                <div className="flex flex-col items-center justify-center my-auto py-20 text-center">
+                  <div className="w-20 h-20 bg-yellow-50 text-yellow-500 rounded-full flex items-center justify-center text-3xl mb-6 border border-yellow-200">
+                    ★
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-800">Henüz favori ürününüz yok</h2>
+                  <p className="text-sm text-gray-400 max-w-sm mt-2">
+                    Beğendiğiniz ürünlerin yanındaki yıldız ikonuna tıklayarak favorilerinize ekleyebilirsiniz.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-xs text-gray-400 font-semibold">
+                      Toplam {filteredFavorites.length} favori ürün listeleniyor
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3.5">
+                    {filteredFavorites.map((r) => {
+                      return (
+                        <div
+                          key={r.id}
+                          className="flex flex-col sm:flex-row items-center gap-4 p-4 border border-gray-200 hover:border-yellow-400 hover:shadow-md transition duration-200 rounded-2xl bg-white relative w-full group"
+                        >
+                          {/* PRODUCT IMAGE */}
+                          <div
+                            onClick={() => handleClick(r.url)}
+                            className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center p-1.5 cursor-pointer"
+                          >
+                            {r.image_url ? (
+                              <img
+                                src={r.image_url}
+                                alt={r.name}
+                                className="w-full h-full object-contain rounded-lg transition group-hover:scale-105"
+                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                              />
+                            ) : (
+                              <span className="text-gray-300 text-[10px] font-semibold">Görsel yok</span>
+                            )}
+                          </div>
+
+                          {/* TEXT INFO */}
+                          <div
+                            onClick={() => handleClick(r.url)}
+                            className="flex-1 min-w-0 w-full cursor-pointer"
+                          >
+                            <h3 className="text-sm font-bold text-gray-800 leading-snug truncate max-w-full group-hover:text-yellow-600">
+                              {r.name}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${SITE_COLORS[r.site] || 'bg-gray-100 text-gray-700'}`}>
+                                {r.site}
+                              </span>
+                              <span className="text-[9px] text-gray-400">
+                                Eklendi: {new Date(r.created_at).toLocaleDateString('tr-TR')}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* PRICE & ACTIONS */}
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center w-full sm:w-auto border-t sm:border-t-0 border-gray-100 pt-3 sm:pt-0 gap-2 flex-shrink-0">
+                            
+                            <div className="text-left sm:text-right">
+                              <p className="text-blue-600 font-black text-lg whitespace-nowrap">
+                                {formatPrice(r.price)} TL
+                              </p>
+                              {r.original_price && r.original_price > r.price && (
+                                <p className="text-xs text-gray-400 line-through">
+                                  {formatPrice(r.original_price)} TL
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* REMOVE FROM FAVORITES */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleFavorite(r as any)
+                                }}
+                                className="p-2 rounded-xl border bg-yellow-50 hover:bg-red-50 hover:text-red-500 hover:border-red-200 border-yellow-300 text-yellow-500 transition shadow-sm"
+                                title="Favorilerden Kaldır"
+                              >
+                                ★
+                              </button>
+                              
+                              <button
+                                onClick={() => handleClick(r.url)}
+                                className="bg-gray-900 hover:bg-blue-600 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition active:scale-95"
+                              >
+                                Siteye Git →
+                              </button>
+                            </div>
+
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </>
           )}
+
         </main>
       </div>
+
+      {/* AUTH MODAL DIALOG */}
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* Tabs header */}
+            <div className="flex border-b border-gray-100 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => { setAuthTab('login'); setAuthError(''); }}
+                className={`flex-1 py-4 text-sm font-bold transition-all ${authTab === 'login' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Giriş Yap
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthTab('register'); setAuthError(''); }}
+                className={`flex-1 py-4 text-sm font-bold transition-all ${authTab === 'register' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Kayıt Ol
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAuthSubmit} className="p-6 space-y-4">
+              
+              {authError && (
+                <div className="bg-red-50 text-red-700 text-xs p-3 rounded-lg border border-red-200 font-medium">
+                  ⚠️ {authError}
+                </div>
+              )}
+
+              {authTab === 'register' && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ad Soyad</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Adınızı ve soyadınızı girin..."
+                    value={authFullName}
+                    onChange={e => setAuthFullName(e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">E-Posta Adresi</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="örnek@eposta.com"
+                  value={authEmail}
+                  onChange={e => setAuthEmail(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Şifre</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+                />
+                {authTab === 'register' && (
+                  <p className="text-[10px] text-gray-400">Şifre en az 6 karakter olmalıdır.</p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAuthModal(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition shadow-md shadow-blue-500/10 disabled:opacity-50"
+                >
+                  {authLoading ? 'Lütfen bekleyin...' : authTab === 'login' ? 'Giriş Yap' : 'Kayıt Ol'}
+                </button>
+              </div>
+
+            </form>
+
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

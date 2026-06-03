@@ -21,3 +21,5 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+# SQLite veritabanı
+*.db

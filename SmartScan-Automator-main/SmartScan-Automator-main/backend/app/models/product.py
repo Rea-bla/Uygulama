@@ -1,5 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, DateTime, Text, Uuid
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from datetime import datetime
@@ -8,7 +7,7 @@ import uuid
 class Product(Base):
     __tablename__ = "products"
 
-    id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id            = Column(Uuid, primary_key=True, default=uuid.uuid4)
     name          = Column(String(500), nullable=False)
     category      = Column(String(100), nullable=True)
     brand         = Column(String(100), nullable=True)
