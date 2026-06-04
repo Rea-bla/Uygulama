@@ -75,13 +75,7 @@ async def search_products(
             site_name = getattr(scrapers_to_run[i], 'SITE_NAME', '')
             CACHE[(q.lower(), site_name)] = (current_time, site_results)
 
-    search_terms = q.lower().split()
-    filtered_results = []
-    for r in results:
-        name_lower = r.name.lower()
-        if all(term in name_lower for term in search_terms):
-            filtered_results.append(r)
-    results = filtered_results
+    # Filtering removed to allow scraper's native search ranking to shine
 
     return {
         "query": q,

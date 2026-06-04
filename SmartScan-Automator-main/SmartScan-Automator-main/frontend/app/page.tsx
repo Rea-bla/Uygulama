@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { sendVerificationCode, sendResetCode, generateCode } from '../lib/email'
 
 interface Result {
   site: string
@@ -110,12 +111,16 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
+  const [authTab, setAuthTab] = useState<'login' | 'register' | 'forgot_password' | 'verify_register' | 'verify_forgot_password'>('login')
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authFullName, setAuthFullName] = useState('')
   const [authError, setAuthError] = useState('')
+  const [authSuccess, setAuthSuccess] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
+  const [verificationCode, setVerificationCode] = useState('')
+  const [inputCode, setInputCode] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   // Favorites States
   const [favorites, setFavorites] = useState<Favorite[]>([])
@@ -174,41 +179,94 @@ export default function Home() {
     setActiveTab('search')
   }
 
+  const resetAuthModal = () => {
+    setAuthEmail('')
+    setAuthPassword('')
+    setAuthFullName('')
+    setInputCode('')
+    setVerificationCode('')
+    setAuthError('')
+    setAuthSuccess('')
+    setAuthTab('login')
+    setShowPassword(false)
+  }
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setAuthError('')
+    setAuthSuccess('')
     setAuthLoading(true)
 
-    const endpoint = authTab === 'register' ? 'register' : 'login'
-    const bodyPayload = authTab === 'register'
-      ? { email: authEmail, password: authPassword, full_name: authFullName }
-      : { email: authEmail, password: authPassword }
-
     try {
-      const res = await fetch(`${API_URL}/api/v1/auth/${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(bodyPayload)
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.detail || 'Bir hata oluştu')
+      if (authTab === 'register') {
+        const code = generateCode()
+        setVerificationCode(code)
+        await sendVerificationCode(authEmail, authFullName, code)
+        setAuthTab('verify_register')
+        setAuthSuccess('Doğrulama kodu e-postanıza gönderildi.')
+        setAuthLoading(false)
+        return
       }
 
-      // Successful login/register
-      localStorage.setItem('token', data.access_token)
-      setToken(data.access_token)
-      await fetchUser(data.access_token)
-      await fetchFavorites(data.access_token)
-      
-      // Reset & close modal
-      setShowAuthModal(false)
-      setAuthEmail('')
-      setAuthPassword('')
-      setAuthFullName('')
+      if (authTab === 'forgot_password') {
+        const code = generateCode()
+        setVerificationCode(code)
+        await sendResetCode(authEmail, code)
+        setAuthTab('verify_forgot_password')
+        setAuthSuccess('Şifre sıfırlama kodu e-postanıza gönderildi.')
+        setAuthLoading(false)
+        return
+      }
+
+      if (authTab === 'verify_register') {
+        if (inputCode !== verificationCode) {
+          throw new Error('Doğrulama kodu hatalı.')
+        }
+        const res = await fetch(`${API_URL}/api/v1/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authEmail, password: authPassword, full_name: authFullName })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Kayıt başarısız')
+        
+        localStorage.setItem('token', data.access_token)
+        setToken(data.access_token)
+        await fetchUser(data.access_token)
+        await fetchFavorites(data.access_token)
+        setShowAuthModal(false)
+        resetAuthModal()
+      } else if (authTab === 'verify_forgot_password') {
+        if (inputCode !== verificationCode) {
+          throw new Error('Doğrulama kodu hatalı.')
+        }
+        const res = await fetch(`${API_URL}/api/v1/auth/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authEmail, new_password: authPassword })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Şifre sıfırlama başarısız')
+        
+        resetAuthModal()
+        setAuthTab('login')
+        setAuthSuccess('Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.')
+      } else if (authTab === 'login') {
+        const res = await fetch(`${API_URL}/api/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authEmail, password: authPassword })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.detail || 'Giriş başarısız')
+        
+        localStorage.setItem('token', data.access_token)
+        setToken(data.access_token)
+        await fetchUser(data.access_token)
+        await fetchFavorites(data.access_token)
+        setShowAuthModal(false)
+        resetAuthModal()
+      }
     } catch (err: any) {
       setAuthError(err.message || 'Sistem bağlantı hatası')
     } finally {
@@ -218,7 +276,7 @@ export default function Home() {
 
   const toggleFavorite = async (item: Result) => {
     if (!token) {
-      setAuthTab('login')
+      resetAuthModal()
       setShowAuthModal(true)
       return
     }
@@ -367,7 +425,7 @@ export default function Home() {
                 </button>
               ) : (
                 <button
-                  onClick={() => { setAuthTab('login'); setShowAuthModal(true); }}
+                  onClick={() => { resetAuthModal(); setShowAuthModal(true); }}
                   className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium shadow-sm transition"
                 >
                   Giriş
@@ -422,7 +480,7 @@ export default function Home() {
               </div>
             ) : (
               <button
-                onClick={() => { setAuthTab('login'); setShowAuthModal(true); }}
+                onClick={() => { resetAuthModal(); setShowAuthModal(true); }}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-md shadow-blue-500/10 transition active:scale-95"
               >
                 Üye Girişi / Kayıt
@@ -563,29 +621,7 @@ export default function Home() {
             </div>
           </FilterSection>
 
-          {/* STORAGE OPTIONS */}
-          <FilterSection
-            title="DEPOLAMA"
-            isOpen={openStorage}
-            onToggle={() => setOpenStorage(p => !p)}
-            badgeCount={selectedStorage ? 1 : 0}
-          >
-            <div className="flex flex-col gap-2.5">
-              {STORAGE_OPTIONS.map(opt => (
-                <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
-                  <input
-                    type="radio"
-                    name="storage"
-                    checked={selectedStorage === opt}
-                    onChange={() => setSelectedStorage(opt)}
-                    onClick={() => selectedStorage === opt && setSelectedStorage('')}
-                    className="accent-blue-600 w-4 h-4 border-gray-300 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-600 group-hover:text-blue-600 transition font-medium">{opt}</span>
-                </label>
-              ))}
-            </div>
-          </FilterSection>
+
         </aside>
 
         {/* MAIN PANEL CONTENT */}
@@ -878,15 +914,15 @@ export default function Home() {
             <div className="flex border-b border-gray-100 bg-gray-50">
               <button
                 type="button"
-                onClick={() => { setAuthTab('login'); setAuthError(''); }}
-                className={`flex-1 py-4 text-sm font-bold transition-all ${authTab === 'login' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                onClick={() => { setAuthTab('login'); setAuthError(''); setAuthSuccess(''); }}
+                className={`flex-1 py-4 text-sm font-bold transition-all ${authTab === 'login' || authTab === 'forgot_password' || authTab === 'verify_forgot_password' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 Giriş Yap
               </button>
               <button
                 type="button"
-                onClick={() => { setAuthTab('register'); setAuthError(''); }}
-                className={`flex-1 py-4 text-sm font-bold transition-all ${authTab === 'register' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                onClick={() => { setAuthTab('register'); setAuthError(''); setAuthSuccess(''); }}
+                className={`flex-1 py-4 text-sm font-bold transition-all ${authTab === 'register' || authTab === 'verify_register' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 Kayıt Ol
               </button>
@@ -901,46 +937,106 @@ export default function Home() {
                 </div>
               )}
 
-              {authTab === 'register' && (
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ad Soyad</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Adınızı ve soyadınızı girin..."
-                    value={authFullName}
-                    onChange={e => setAuthFullName(e.target.value)}
-                    className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
-                  />
+              {authSuccess && (
+                <div className="bg-green-50 text-green-700 text-xs p-3 rounded-lg border border-green-200 font-medium">
+                  ✓ {authSuccess}
                 </div>
               )}
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">E-Posta Adresi</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="örnek@eposta.com"
-                  value={authEmail}
-                  onChange={e => setAuthEmail(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
-                />
-              </div>
+              {(authTab === 'verify_register' || authTab === 'verify_forgot_password') ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">E-posta adresinize gönderilen 6 haneli doğrulama kodunu girin.</p>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Doğrulama Kodu</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="000000"
+                      maxLength={6}
+                      value={inputCode}
+                      onChange={e => setInputCode(e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-center tracking-[1em] font-bold text-2xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {authTab === 'register' && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ad Soyad</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Adınızı ve soyadınızı girin..."
+                        value={authFullName}
+                        onChange={e => setAuthFullName(e.target.value)}
+                        className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+                      />
+                    </div>
+                  )}
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Şifre</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={authPassword}
-                  onChange={e => setAuthPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
-                />
-                {authTab === 'register' && (
-                  <p className="text-[10px] text-gray-400">Şifre en az 6 karakter olmalıdır.</p>
-                )}
-              </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">E-Posta Adresi</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="örnek@eposta.com"
+                      value={authEmail}
+                      onChange={e => setAuthEmail(e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+                    />
+                  </div>
+
+                  {(authTab === 'login' || authTab === 'register' || authTab === 'forgot_password') && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                          {authTab === 'forgot_password' ? 'Yeni Şifre' : 'Şifre'}
+                        </label>
+                        {authTab === 'login' && (
+                          <button
+                            type="button"
+                            onClick={() => { setAuthTab('forgot_password'); setAuthError(''); setAuthSuccess(''); }}
+                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 transition"
+                          >
+                            Şifremi Unuttum
+                          </button>
+                        )}
+                        {authTab === 'forgot_password' && (
+                          <button
+                            type="button"
+                            onClick={() => { setAuthTab('login'); setAuthError(''); setAuthSuccess(''); }}
+                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 transition"
+                          >
+                            Girişe Dön
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={authPassword}
+                          onChange={e => setAuthPassword(e.target.value)}
+                          className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                          tabIndex={-1}
+                        >
+                          {showPassword ? '👁️' : '👁️‍🗨️'}
+                        </button>
+                      </div>
+                      {(authTab === 'register' || authTab === 'forgot_password') && (
+                        <p className="text-[10px] text-gray-400">Şifre en az 6 karakter olmalıdır.</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
@@ -955,7 +1051,15 @@ export default function Home() {
                   disabled={authLoading}
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition shadow-md shadow-blue-500/10 disabled:opacity-50"
                 >
-                  {authLoading ? 'Lütfen bekleyin...' : authTab === 'login' ? 'Giriş Yap' : 'Kayıt Ol'}
+                  {authLoading 
+                    ? 'Bekleyin...' 
+                    : authTab === 'verify_register' || authTab === 'verify_forgot_password' 
+                      ? 'Doğrula' 
+                      : authTab === 'forgot_password'
+                        ? 'Şifreyi Sıfırla'
+                        : authTab === 'login' 
+                          ? 'Giriş Yap' 
+                          : 'Kayıt Ol'}
                 </button>
               </div>
 

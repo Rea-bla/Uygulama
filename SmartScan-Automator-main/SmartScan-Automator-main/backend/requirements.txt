@@ -8,7 +8,7 @@ asyncpg==0.29.0
 alembic==1.13.1
 
 # Veri doğrulama ve ayarlar
-pydantic==2.6.0
+pydantic[email]==2.6.0
 pydantic-settings==2.1.0
 
 # HTTP ve scraping
@@ -25,3 +25,4 @@ redis==5.0.1
 # Güvenlik
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==3.2.2

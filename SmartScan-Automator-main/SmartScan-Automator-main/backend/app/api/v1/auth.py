@@ -26,6 +26,10 @@ class TokenSchema(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
+class ResetPasswordSchema(BaseModel):
+    email: EmailStr
+    new_password: str = Field(..., min_length=6)
+
 class UserResponseSchema(BaseModel):
     id: str
     email: EmailStr
@@ -97,6 +101,21 @@ async def login(user_in: UserLoginSchema, db: AsyncSession = Depends(get_db)):
     
     token = create_access_token(subject=user.email)
     return {"access_token": token, "token_type": "bearer"}
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(user_in: ResetPasswordSchema, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == user_in.email))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Kullanıcı bulunamadı."
+        )
+    
+    hashed_pwd = get_password_hash(user_in.new_password)
+    user.hashed_password = hashed_pwd
+    
+    return {"message": "Şifreniz başarıyla güncellendi."}
 
 @router.get("/me", response_model=UserResponseSchema)
 async def get_me(current_user: User = Depends(get_current_user)):

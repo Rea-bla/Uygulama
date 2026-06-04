@@ -114,6 +114,13 @@ class ApiClient {
     })
   }
 
+  async resetPassword(email: string, newPassword: string) {
+    return this.post('/api/v1/auth/reset-password', {
+      email,
+      new_password: newPassword,
+    }, false)
+  }
+
   async getProfileStats() {
     return this.get('/api/v1/profile/stats')
   }
