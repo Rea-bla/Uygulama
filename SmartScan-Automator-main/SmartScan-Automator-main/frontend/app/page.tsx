@@ -348,6 +348,13 @@ export default function Home() {
     }
   }
 
+  useEffect(() => {
+    if (searched && query.trim()) {
+      search()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSites])
+
   const filteredResults = [...results].filter(r => {
     if (minPrice && r.price < parseFloat(minPrice)) return false
     if (maxPrice && r.price > parseFloat(maxPrice)) return false
