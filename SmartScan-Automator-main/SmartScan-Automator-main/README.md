@@ -17,6 +17,7 @@
 - [Mimari & Teknoloji Yığını](#-mimari--teknoloji-yığını)
 - [Proje Yapısı](#-proje-yapısı)
 - [Kurulum](#-kurulum)
+- [Mobil Uygulama](#-mobil-uygulama)
 - [API Referansı](#-api-referansı)
 - [Desteklenen Siteler](#-desteklenen-siteler)
 - [Ekran Görüntüleri](#-ekran-görüntüleri)
@@ -280,6 +281,46 @@ docker-compose up --build
 - **Frontend:** http://localhost:3000
 - **Backend API:** http://localhost:8000
 - **API Dokümantasyonu (Swagger):** http://localhost:8000/docs
+
+---
+
+## 📱 Mobil Uygulama
+
+Projenin **React Native (Expo)** ile geliştirilmiş mobil uygulama sürümü `mobile` klasöründe yer almaktadır. Mobil uygulama, backend API'siyle entegre şekilde çalışarak kullanıcılara mobil cihazlarda ürün arama ve yerel fiyat takip olanağı sunar.
+
+### 🌟 Özellikler
+
+- **Akıllı Ürün Arama:** Backend API üzerinden anlık ürün tarama, fiyat ve satıcı listeleme.
+- **Yerel Fiyat Takibi (AsyncStorage):** Herhangi bir üyelik gerektirmeden, ilgilenilen ürünlerin telefon hafızasına kaydedilmesi.
+- **Fiyat Değişim Takibi:** Takip listesindeki ürünlerin ilk eklendiği fiyat ile güncel fiyatını karşılaştırarak düşüş (▼) veya yükseliş (▲) oranlarını canlı gösterme.
+- **Modern Koyu Tema:** iOS ve Android cihazlar için optimize edilmiş, göz yormayan modern arayüz tasarımı.
+
+### 🛠️ Kurulum ve Çalıştırma
+
+1. **Bağımlılıkları Yükleyin:**
+   ```bash
+   cd mobile
+   npm install
+   ```
+
+2. **Çevre Değişkenlerini Ayarlayın:**
+   `mobile` klasöründe bir `.env` dosyası oluşturun ve backend API adresinizi girin:
+   ```env
+   EXPO_PUBLIC_API_URL=http://localhost:8000
+   ```
+   > [!NOTE]
+   > Gerçek bir cihazda (Android/iOS) test ederken, `localhost` yerine bilgisayarınızın yerel ağ IP adresini (Örn: `http://192.168.1.100:8000`) yazmalısınız. Android emülatör için varsayılan loopback adresi `http://10.0.2.2:8000`'dir.
+
+3. **Uygulamayı Başlatın:**
+   ```bash
+   npm run start
+   # veya
+   npx expo start
+   ```
+
+4. **Test Etme:**
+   - Ekranda çıkan QR kodu **Expo Go** uygulaması (Android/iOS) ile okutarak doğrudan kendi telefonunuzda test edebilirsiniz.
+   - Bilgisayarınızda emülatör yüklüyse `a` (Android) veya `i` (iOS) tuşlarına basarak emülatörde çalıştırabilirsiniz.
 
 ---
 
