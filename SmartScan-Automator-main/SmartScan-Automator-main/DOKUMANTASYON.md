@@ -228,6 +228,131 @@ Alembic migration'ları ile `users`, `favorites` tabloları oluşturuldu.
 ### Yapılan Değişiklikler:
 Filtre değişikliklerinde (site seçimi, sıralama, fiyat aralığı vb.) aramanın otomatik olarak yeniden tetiklenmesi sağlandı. Kullanıcının filtreyi değiştirdikten sonra tekrar "Ara" butonuna basmasına gerek kalmıyor.
 
+## 📌 Commit #7 — Kapsamlı Dökümantasyon (06.06.2026)
+**Geliştirici:** Canberk Gür (`cnbrkgr53-debug`)
+**Commit:** `6e2441e`
+**Mesaj:** `docs: Kapsamli README.md ve DOKUMANTASYON.md eklendi`
+
+### Değiştirilen/Eklenen Dosyalar (2 dosya):
+- `README.md` — Kapsamlı proje tanıtımı, mimari diyagram, teknoloji tablosu, API referansı, kurulum rehberi
+- `DOKUMANTASYON.md` — Tüm commit geçmişinin detaylı teknik açıklaması
+
+### Yapılan Değişiklikler:
+Proje ilk kez profesyonel düzeyde belgelendi. README.md 548 satırlık kapsamlı bir proje tanıtım belgesi olarak yeniden yazıldı. Tüm API endpoint'leri, desteklenen siteler, scraping motor karşılaştırması ve ekip katkıları detaylandırıldı.
+
+---
+
+## 📌 Commit #8 — Mobil Uygulama Dökümantasyonu (06.06.2026)
+**Geliştirici:** Hüseyinalp Yüksel (`huseynalpyuksel`)
+**Commit:** `bcb1eec`
+**Mesaj:** `docs: Mobil uygulama dokumantasyonu ve .env.example eklendi`
+
+### Değiştirilen/Eklenen Dosyalar:
+- `README.md` — Mobil uygulama bölümü eklendi
+- `.env.example` — Çevre değişkenleri şablonu
+
+### Yapılan Değişiklikler:
+React Native (Expo) ile geliştirilen mobil uygulama sürümünün kurulum ve kullanım rehberi README'ye eklendi. `.env.example` dosyası ile çevre değişkenleri şablonu oluşturuldu.
+
+---
+
+## 📌 Commit #9 — v2.0: Anasayfa Yeniden Tasarımı ve Büyük Güncelleme (06.06.2026)
+**Geliştirici:** Canberk Gür (`cnbrkgr53-debug`)
+**Commit:** `054181f`
+**Mesaj:** `v2.0: Anasayfa yeniden tasarimi, tema toggle, guvenlik ve performans iyilestirmeleri`
+
+### Değiştirilen/Eklenen Dosyalar (9 dosya, +1531 / -995 satır):
+- `frontend/app/page.tsx` — Tam yeniden yapılandırma (~500 satır)
+- `frontend/app/globals.css` — Dual tema CSS değişkenleri (+471 satır)
+- `frontend/app/layout.tsx` — Inter font, Türkçe SEO meta, `lang="tr"`
+- `backend/app/api/v1/categories.py` — **YENİ** — 8 ürün kategorisi API'si
+- `backend/app/api/v1/homepage.py` — **YENİ** — İndirimler, trendler, öneriler (+378 satır)
+- `backend/app/core/security.py` — passlib → direkt bcrypt geçişi
+- `backend/app/api/v1/auth.py` — `db.commit()` eksiklikleri giderildi
+- `backend/app/main.py` — Yeni router'lar (categories, homepage) kayıtlandı
+- `README.md` — v2.0 güncelleme notları, yeni özellikler, API referansı
+
+### Yapılan Değişiklikler:
+
+#### 1. Akakçe Tarzı Anasayfa Tasarımı (`page.tsx`)
+Mevcut basit arama sayfası, Akakçe benzeri zengin bir anasayfaya dönüştürüldü:
+- **Hero Bölümü:** Gradient arka planlı büyük arama çubuğu, "Binlerce Üründe En İyi Fiyatı Bulun" başlığı
+- **8 Kategori Kartı:** Elektronik, Giyim & Moda, Beyaz Eşya, Kozmetik & Bakım, Spor & Outdoor, Oyun & Konsol, Telefon & Aksesuar, Anne & Bebek — her birinde emoji ikonu ve gradient renkli tasarım
+- **Son İndirimler Carousel'i:** Yatay kaydırmalı (`overflow-x: auto`) indirimli ürün kartları, `deal-card` CSS sınıfı ile 220px sabit genişlik, indirim yüzdesi rozeti
+- **Popüler Aramalar:** Chip/tag formatında trend arama terimleri — veritabanındaki son 7 günün en çok aranan kelimeleri veya fallback listesi
+- **Kişiselleştirilmiş Öneriler:** Giriş yapmış kullanıcılar için arama geçmişine dayalı ürün önerileri, giriş yapmamışlar için "Popüler Ürünler"
+- **Arama Modu Geçişi:** Kullanıcı bir kategori veya trend'e tıkladığında anasayfadan arama sonuçları görünümüne yumuşak geçiş (`searchMode` state), SmartScan logosuna tıklayarak anasayfaya geri dönüş (`goHome()`)
+
+#### 2. Açık/Koyu Tema Toggle Sistemi (`globals.css` + `page.tsx`)
+CSS değişkenleri ile tam kapsamlı dual tema sistemi kuruldu:
+- **Açık Tema (varsayılan):** Beyaz/kemik rengi arka plan, koyu metin renkleri — `--background: #FAF9F6`, `--foreground: #1a1a2e`
+- **Koyu Tema:** Koyu lacivert arka plan, glassmorphism efektli kartlar — `--background: #0a0a1a`, `--card-bg: rgba(255,255,255,0.05)`
+- Sol üst köşede ☀️/🌙 tema değiştirme butonu (`themeToggle`)
+- Kullanıcı tercihi `localStorage`'da saklanır, sayfa yenilenince korunur
+- Tüm bileşenler (kartlar, modallar, butonlar, inputlar) CSS değişkenleriyle otomatik güncellenir
+- Glassmorphism efektleri: `backdrop-filter: blur()`, `box-shadow`, `border` şeffaflık geçişleri
+
+#### 3. Kategori API Endpoint'i (`categories.py` — YENİ DOSYA)
+8 sabit kategori tanımı döndüren REST API endpoint'i eklendi:
+```
+GET /api/v1/categories/
+```
+Her kategori: `id`, `name`, `icon` (emoji), `keywords` (arama anahtar kelimeleri), `gradient` (CSS renk geçişi)
+
+#### 4. Anasayfa API Endpoint'leri (`homepage.py` — YENİ DOSYA)
+Üç ayrı endpoint ile anasayfa verisi sağlayan kapsamlı bir sistem kuruldu:
+
+**`GET /api/v1/homepage/deals`** — İndirimli Ürünler:
+- 3 katmanlı cache stratejisi: (1) Homepage cache (10 dk), (2) Search cache'den indirimli ürünleri toplama, (3) Fallback sabit veri
+- **Fallback sistemi:** Cache boşsa 10 adet gerçekçi indirimli ürün anında döndürülür, arka planda `asyncio.create_task()` ile scraper çalıştırılarak cache doldurulur
+- İndirim yüzdesi hesaplanır ve azalan sırayla sıralanır
+
+**`GET /api/v1/homepage/trending`** — Popüler Aramalar:
+- `search_history` tablosundan son 7 günün en çok aranan 15 terimi gruplanır ve sayılır
+- Veritabanında yeterli kayıt yoksa fallback liste döner: "gaming laptop", "iphone 16", "airpods pro" vb.
+
+**`GET /api/v1/homepage/recommendations`** — Kişiselleştirilmiş Öneriler:
+- **Giriş yapmış kullanıcı:** Son 10 araması alınır, benzersiz 3 terim seçilir, hızlı scraper'larla cache-first arama yapılır → "Sizin İçin Öneriler" başlığıyla döner
+- **Giriş yapmamış kullanıcı:** Mevcut cache'den rastgele ürünler karıştırılır → "Popüler Ürünler" başlığıyla döner (scraper çalıştırmaz, anında döner)
+- Opsiyonel auth: `get_current_user_optional()` fonksiyonu 401 fırlatmaz, giriş yapmamışsa `None` döner
+
+#### 5. Güvenlik Düzeltmesi: passlib → Direkt bcrypt (`security.py`)
+**Sorun:** `passlib` kütüphanesi yeni `bcrypt 4.x` versiyonuyla uyumsuzdu. `passlib` kendi iç `detect_wrap_bug()` fonksiyonunda 72 byte'tan uzun bir test şifresi kullanıyordu ve `bcrypt` bunu reddediyordu:
+```
+ValueError: password cannot be longer than 72 bytes
+```
+Bu hata, kayıt ve giriş işlemlerinin tamamen çalışmamasına neden oluyordu.
+
+**Çözüm:** `passlib` tamamen kaldırıldı, direkt `bcrypt` kütüphanesi kullanıldı:
+```python
+import bcrypt
+
+def get_password_hash(password: str) -> str:
+    pwd_bytes = password.encode('utf-8')[:72]  # bcrypt 72 byte limiti
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(pwd_bytes, salt)
+    return hashed.decode('utf-8')
+```
+
+#### 6. Veritabanı Commit Düzeltmesi (`auth.py`)
+- `register` endpoint'inde `db.flush()` sonrası `db.commit()` eksikti — kullanıcı kaydı veritabanına kalıcı olarak yazılmıyordu
+- `reset-password` endpoint'inde de aynı sorun vardı — şifre değişikliği kalıcı olmuyordu
+- Her iki endpoint'e `await db.commit()` eklendi
+
+#### 7. Frontend SEO ve Erişilebilirlik (`layout.tsx`)
+- `lang="tr"` özelliği HTML'e eklendi
+- Google Fonts'tan **Inter** fontu yüklendi
+- SEO meta etiketleri: `description`, `viewport`, `robots`
+- Sayfa başlığı: "SmartScan — Akıllı Fiyat Karşılaştırma"
+
+#### 8. README.md v2.0 Güncellemesi
+- Shields.io teknoloji rozet'leri eklendi
+- Yeni özellikler (Anasayfa, Tema Toggle) bölümleri eklendi
+- API referansına anasayfa endpoint'leri eklendi
+- Teknoloji tablosu güncellendi (Next.js 16.2.4, SQLite/PostgreSQL, bcrypt direkt)
+- "Son Güncelleme Notları (v2.0)" bölümü eklendi
+- İstatistikler güncellendi: 8+ commit, 35+ dosya, ~8000+ satır
+
 ---
 
 ## 📈 Toplam Geliştirme Özeti
@@ -236,34 +361,39 @@ Filtre değişikliklerinde (site seçimi, sıralama, fiyat aralığı vb.) arama
 
 | Kategori | Dosya Sayısı |
 |----------|-------------|
-| Backend API Endpoint'leri | 10 |
+| Backend API Endpoint'leri | 12 |
 | Backend Core Modülleri | 5 |
 | Veritabanı Modelleri | 7 |
-| Veritabanı Migration'ları | 2 |
-| Frontend Sayfa/Bileşen | 5 |
+| Veritabanı Migration'ları | 3 |
+| Frontend Sayfa/Bileşen | 6 |
 | Arka Plan Görevleri | 1 |
-| **Toplam yeni dosya** | **~30** |
+| Dökümantasyon | 3 |
+| **Toplam yeni dosya** | **~37** |
 
 ### Kod Satır İstatistikleri
 
-| Commit | Eklenen | Silinen | Net |
-|--------|---------|---------|-----|
-| `213ac27` (Yağız) | +188 | -54 | +134 |
-| `8a3d9d6` (Yağız) | +309 | -251 | +58 |
-| `a422ac6` (Yağız) | +25 | 0 | +25 |
-| `5da094e` (Canberk) | +5110 | -163 | +4947 |
-| `b4659b6` (Hüseyinalp) | +394 | -103 | +291 |
-| `6c2ac8f` (Hüseyinalp) | +7 | 0 | +7 |
-| **Toplam** | **+6033** | **-571** | **+5462** |
+| Commit | Geliştirici | Eklenen | Silinen | Net |
+|--------|-------------|---------|---------|-----|
+| `213ac27` | Yağız Van | +188 | -54 | +134 |
+| `8a3d9d6` | Yağız Van | +309 | -251 | +58 |
+| `a422ac6` | Yağız Van | +25 | 0 | +25 |
+| `5da094e` | Canberk Gür | +5110 | -163 | +4947 |
+| `b4659b6` | Hüseyinalp Yüksel | +394 | -103 | +291 |
+| `6c2ac8f` | Hüseyinalp Yüksel | +7 | 0 | +7 |
+| `6e2441e` | Canberk Gür | +820 | 0 | +820 |
+| `bcb1eec` | Hüseyinalp Yüksel | +45 | -5 | +40 |
+| `054181f` | Canberk Gür | +1531 | -995 | +536 |
+| **Toplam** | | **+8429** | **-1571** | **+6858** |
 
 ### Kişi Bazlı Katkı Dağılımı
 
 | Geliştirici | Commit Sayısı | Net Satır | Ana Odak Alanları |
 |-------------|---------------|-----------|-------------------|
 | Yağız Van | 3 | +217 | Performans, scraping motoru, cache, bug fix |
-| Canberk Gür | 1 | +4947 | Full-stack mimari, üyelik, güvenlik, UI |
-| Hüseyinalp Yüksel | 2 | +298 | E-posta, veritabanı, UX iyileştirmeleri |
+| Canberk Gür | 3 | +6303 | Full-stack mimari, üyelik, güvenlik, UI, anasayfa, tema, dökümantasyon |
+| Hüseyinalp Yüksel | 3 | +338 | E-posta, veritabanı, UX iyileştirmeleri, mobil dökümantasyon |
 
 ---
 
-*Bu dökümantasyon, SmartScan Automator projesinin ekibimiz tarafından gerçekleştirilen tüm geliştirmelerini kapsamaktadır.*
+*Bu dökümantasyon, SmartScan Automator projesinin ekibimiz tarafından gerçekleştirilen tüm geliştirmelerini kapsamaktadır. Son güncelleme: 06.06.2026 — v2.0*
+
