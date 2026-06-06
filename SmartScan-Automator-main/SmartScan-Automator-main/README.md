@@ -6,6 +6,13 @@
   <p align="center">
     7 büyük e-ticaret sitesinden anlık fiyat tarama · Akıllı filtreleme · Üyelik sistemi · Favoriler · Fiyat alarmları
   </p>
+  <p align="center">
+    <img src="https://img.shields.io/badge/Next.js-16.2.4-black?logo=next.js" alt="Next.js">
+    <img src="https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi" alt="FastAPI">
+    <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python" alt="Python">
+    <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript" alt="TypeScript">
+    <img src="https://img.shields.io/badge/Tailwind_CSS-4.x-06B6D4?logo=tailwindcss" alt="Tailwind">
+  </p>
 </p>
 
 ---
@@ -42,11 +49,26 @@ Proje, açık kaynak bir temel üzerine inşa edilmiş olup, ekibimiz tarafında
 
 ## ✨ Özellikler
 
+### 🏠 Akakçe Tarzı Anasayfa (YENİ)
+- **Hero Bölümü:** Büyük arama çubuğu ile "Binlerce Üründe En İyi Fiyatı Bulun" başlığı
+- **8 Kategori Kartı:** Elektronik, Giyim & Moda, Beyaz Eşya, Kozmetik, Spor & Outdoor, Oyun & Konsol, Telefon & Aksesuar, Anne & Bebek
+- **Son İndirimler Carousel'i:** Yatay kaydırmalı indirimli ürün kartları (fallback + arka plan scraping ile anlık yükleme)
+- **Popüler Aramalar:** Trend chip'leri (veritabanındaki son 7 günün aramaları veya fallback liste)
+- **Kişiselleştirilmiş Öneriler:** Giriş yapmış kullanıcılar için arama geçmişine dayalı öneriler
+
+### 🌗 Açık/Koyu Tema Desteği (YENİ)
+- **Varsayılan açık tema** (beyaz/kemik rengi eski tasarım)
+- **Koyu tema** (glassmorphism, cam efektli kartlar)
+- Sol üst köşede ☀️/🌙 tema değiştirme butonu
+- Tercih `localStorage`'da saklanır, sayfa yenilenince korunur
+- Tüm renkler CSS değişkenleriyle yönetilir (`--background`, `--foreground`, `--card-bg` vb.)
+
 ### 🔍 Akıllı Arama Motoru
 - **7 e-ticaret sitesinde** eş zamanlı, paralel arama (`asyncio.gather`)
-- **Akıllı Kategori Algılama:** Giyim ürünleri arandığında teknoloji siteleri (MediaMarkt, Vatan, Teknosa) otomatik devre dışı
+- **Akıllı Kategori Algılama:** Giyim ürünleri arandığında teknoloji siteleri otomatik devre dışı
 - **In-Memory Cache:** 5 dakikalık önbellekleme ile filtre değişikliklerinde anında (< 1ms) sonuç
-- **Çift Motorlu Scraping:** Hız gerektiren siteler için `curl_cffi`, güçlü güvenlik duvarı olan siteler için `Playwright`
+- **Çift Motorlu Scraping:** `curl_cffi` (hızlı) + `Playwright` (güçlü)
+- **Arama Geçmişi:** Son 10 arama localStorage'da, focus'ta dropdown olarak gösterilir
 
 ### 🎛️ Gelişmiş Filtreleme & Sıralama
 - **Site bazlı filtreleme** (checkbox ile çoklu seçim)
@@ -59,41 +81,33 @@ Proje, açık kaynak bir temel üzerine inşa edilmiş olup, ekibimiz tarafında
 - JWT tabanlı güvenli kayıt ve giriş
 - **E-posta doğrulama** (6 haneli kod, EmailJS entegrasyonu)
 - **Şifremi unuttum** akışı (kod gönder → doğrula → yeni şifre belirle)
-- Bcrypt ile şifre hashleme
+- Direkt `bcrypt` kütüphanesi ile güvenli şifre hashleme (passlib uyumsuzluk sorunu çözüldü)
 - Oturum yönetimi (localStorage + otomatik token yükleme)
 
 ### ⭐ Favoriler Sistemi
 - Ürün kartlarında tek tıkla favori ekleme/çıkarma
 - Ayrı "Favorilerim" sekmesi ile kolay erişim
+- **CSV/JSON dışa aktarma** butonları
 - Favoriler üzerinde arama, fiyat ve site bazlı filtreleme
-- Eklenme tarihi gösterimi
 
-### 🏷️ Satıcı Rozetleri (Badge)
-- **Kargo bilgisi:** "ÜCRETSİZ KARGO"
-- **Satıcı bilgisi:** "Satıcı: Tekramarket" (3. parti distribütör ayrımı)
-- **Kampanya etiketleri:** "Kuponlu Ürün", "SEPETTE İNDİRİM"
+### 🔔 Bildirim Sistemi
+- Header'da unread sayaçlı 🔔 zil ikonu + açılır bildirim paneli
+- Uygulama içi bildirimler (okundu/okunmadı yönetimi)
+- Fiyat alarmları (hedef fiyat belirleme, otomatik tetikleme)
 
-### ⭐ Puan & Değerlendirme Sistemi
-- Ürün yıldız puanı (1-5)
-- Değerlendirme sayısı gösterimi
+### 🏷️ Satıcı Rozetleri & Puanlar
+- Kargo, satıcı ve kampanya rozetleri
+- Ürün yıldız puanı (1-5) ve değerlendirme sayısı
 - Puana göre sıralama desteği
 
 ### 📊 Analitik Dashboard
 - Kişisel arama istatistikleri (günlük, haftalık, aylık)
-- Favori site dağılım yüzdeleri
-- Toplam tasarruf tahmini
-- Platform geneli global istatistikler
-
-### 🔔 Bildirim Sistemi
-- Uygulama içi bildirimler (okundu/okunmadı yönetimi)
-- Fiyat alarmları (hedef fiyat belirleme, otomatik tetikleme)
-- Arama geçmişi kaydı
+- Favori site dağılım yüzdeleri ve toplam tasarruf tahmini
 
 ### 🛡️ Güvenlik Altyapısı
 - Rate Limiting (IP bazlı istek sınırlama)
 - Güvenlik Header'ları (XSS, Clickjacking, MIME koruması)
 - Request Loglama ve izleme
-- Sistem sağlık kontrol endpoint'leri
 
 ---
 
@@ -115,7 +129,7 @@ Proje, açık kaynak bir temel üzerine inşa edilmiş olup, ekibimiz tarafında
 │  curl_cffi (Hızlı)  ·  Playwright (Güçlü)          │
 │  BeautifulSoup4 · lxml · In-Memory Cache            │
 ├─────────────────────────────────────────────────────┤
-│              VERİTABANI (PostgreSQL)                 │
+│              VERİTABANI (SQLite / PostgreSQL)        │
 │  SQLAlchemy 2.0 (Async) · Alembic Migrations        │
 │  Users · Favorites · PriceAlerts · SearchHistory    │
 └─────────────────────────────────────────────────────┘
@@ -125,21 +139,21 @@ Proje, açık kaynak bir temel üzerine inşa edilmiş olup, ekibimiz tarafında
 
 | Katman | Teknoloji | Versiyon |
 |--------|-----------|----------|
-| **Frontend** | Next.js (React) | 15.x |
+| **Frontend** | Next.js (React) | 16.2.4 |
 | **Frontend** | TypeScript | 5.x |
 | **Frontend** | Tailwind CSS | 4.x |
 | **Frontend** | EmailJS | 4.x |
 | **Backend** | Python | 3.12 |
 | **Backend** | FastAPI | 0.110.0 |
 | **Backend** | Uvicorn | 0.27.0 |
-| **Veritabanı** | PostgreSQL | 16 |
+| **Veritabanı** | SQLite (geliştirme) / PostgreSQL (üretim) | — |
 | **ORM** | SQLAlchemy (Async) | 2.0.25 |
 | **Migration** | Alembic | 1.13.1 |
 | **Scraping** | curl_cffi | 0.7.4 |
 | **Scraping** | Playwright | 1.42.0 |
 | **Scraping** | BeautifulSoup4 | 4.12.3 |
 | **Güvenlik** | python-jose (JWT) | 3.3.0 |
-| **Güvenlik** | passlib + bcrypt | 1.7.4 |
+| **Güvenlik** | bcrypt (direkt) | 4.x |
 | **Container** | Docker & Docker Compose | — |
 
 ---
@@ -154,6 +168,8 @@ SmartScan-Automator/
 │   │   │   ├── search.py             # Ürün arama (ana motor)
 │   │   │   ├── auth.py               # Kayıt, giriş, şifre sıfırlama
 │   │   │   ├── favorites.py          # Favori CRUD işlemleri
+│   │   │   ├── categories.py         # Kategori listesi (YENİ)
+│   │   │   ├── homepage.py           # Anasayfa: deals, trending, öneriler (YENİ)
 │   │   │   ├── analytics.py          # Dashboard istatistikleri
 │   │   │   ├── health.py             # Sistem sağlık kontrolü
 │   │   │   ├── notifications.py      # Bildirim yönetimi
@@ -334,10 +350,14 @@ Tüm API endpoint'leri `/api/v1` prefix'i altında çalışmaktadır.
 |-------|----------|----------|
 | `GET` | `/api/v1/search?q={query}&sites={sites}&limit={limit}` | Ürün arama |
 
-**Parametreler:**
-- `q` (zorunlu): Arama sorgusu
-- `sites` (opsiyonel): Virgülle ayrılmış site isimleri (Örn: `Trendyol,n11`)
-- `limit` (opsiyonel): Maksimum sonuç sayısı (varsayılan: 500)
+### 🏠 Anasayfa (YENİ)
+
+| Metot | Endpoint | Açıklama |
+|-------|----------|----------|
+| `GET` | `/api/v1/categories` | 8 ürün kategorisi listesi |
+| `GET` | `/api/v1/homepage/deals` | İndirimli ürünler (cache + fallback) |
+| `GET` | `/api/v1/homepage/trending` | Popüler aramalar (son 7 gün) |
+| `GET` | `/api/v1/homepage/recommendations` | Kişiselleştirilmiş öneriler |
 
 ### 🔐 Kimlik Doğrulama
 
@@ -355,31 +375,22 @@ Tüm API endpoint'leri `/api/v1` prefix'i altında çalışmaktadır.
 | `GET` | `/api/v1/favorites` | Favorileri listeleme |
 | `POST` | `/api/v1/favorites` | Favori ekleme |
 | `DELETE` | `/api/v1/favorites?url={url}` | Favori kaldırma |
+| `GET` | `/api/v1/export/favorites/{format}` | CSV/JSON dışa aktarma |
 
 ### 🔔 Bildirimler
 
 | Metot | Endpoint | Açıklama |
 |-------|----------|----------|
 | `GET` | `/api/v1/notifications` | Bildirimleri listeleme |
-| `GET` | `/api/v1/notifications/count` | Bildirim sayıları |
 | `PUT` | `/api/v1/notifications/{id}/read` | Okundu işaretleme |
-| `PUT` | `/api/v1/notifications/read-all` | Tümünü okundu işaretleme |
-| `DELETE` | `/api/v1/notifications/{id}` | Bildirim silme |
 
-### 📊 Analitik
+### 📊 Analitik & Sağlık
 
 | Metot | Endpoint | Açıklama |
 |-------|----------|----------|
 | `GET` | `/api/v1/analytics/dashboard` | Kişisel dashboard |
 | `GET` | `/api/v1/analytics/global` | Platform istatistikleri |
-
-### 💚 Sistem Sağlığı
-
-| Metot | Endpoint | Açıklama |
-|-------|----------|----------|
 | `GET` | `/api/v1/health` | Detaylı sistem durumu |
-| `GET` | `/api/v1/health/ping` | Basit ping/pong |
-| `GET` | `/api/v1/health/ready` | Hazırlık kontrolü |
 
 ---
 
@@ -526,13 +537,28 @@ Bu proje, açık kaynak bir fiyat karşılaştırma altyapısı temel alınarak 
 
 | Metrik | Değer |
 |--------|-------|
-| **Toplam Commit** | 6 (ilk commit hariç) |
-| **Eklenen Dosya** | 30+ yeni dosya |
-| **Eklenen Kod** | ~6.000+ satır |
-| **API Endpoint** | 10 router, 25+ endpoint |
+| **Toplam Commit** | 8+ (ilk commit hariç) |
+| **Eklenen Dosya** | 35+ yeni dosya |
+| **Eklenen Kod** | ~8.000+ satır |
+| **API Endpoint** | 12 router, 30+ endpoint |
 | **Desteklenen Site** | 7 e-ticaret platformu |
 | **Veritabanı Tablosu** | 7 tablo |
-| **Frontend Bileşen** | 10+ yeniden kullanılabilir bileşen |
+| **Frontend Bileşen** | 15+ yeniden kullanılabilir bileşen |
+
+---
+
+## 🔄 Son Güncelleme Notları (v2.0)
+
+- ✅ Akakçe tarzı anasayfa tasarımı (Hero, Kategoriler, İndirimler, Trendler, Öneriler)
+- ✅ Açık/Koyu tema toggle sistemi (varsayılan: açık tema)
+- ✅ `passlib` → direkt `bcrypt` geçişi (uyumluluk sorunu çözüldü)
+- ✅ `db.commit()` eksiklikleri giderildi (kayıt/şifre sıfırlama)
+- ✅ Deals endpoint'i artık anlık yükleniyor (fallback + arka plan scraping)
+- ✅ Recommendations endpoint'i cache-first yaklaşımla optimize edildi
+- ✅ Tüm renkler CSS değişkenleriyle tema uyumlu hale getirildi
+- ✅ SmartScan logosuna tıklayarak anasayfaya dönme düzeltildi
+- ✅ Yatay scroll carousel düzeltildi (220px sabit kart genişliği)
+- ✅ SEO meta etiketleri ve Türkçe `lang="tr"` desteği eklendi
 
 ---
 
@@ -543,5 +569,5 @@ Bu proje eğitim amaçlı geliştirilmiştir.
 ---
 
 <p align="center">
-  <strong>SmartScan Automator</strong> — Akıllı alışverişin başlangıç noktası 🛒
+  <strong>SmartScan Automator v2.0</strong> — Akıllı alışverişin başlangıç noktası 🛒
 </p>

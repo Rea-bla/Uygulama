@@ -15,6 +15,8 @@ from app.api.v1.analytics import router as analytics_router
 from app.api.v1.health import router as health_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.export import router as export_router
+from app.api.v1.categories import router as categories_router
+from app.api.v1.homepage import router as homepage_router
 
 from app.core.middleware import (
     RequestLoggingMiddleware,
@@ -66,6 +68,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:19006",
     "http://localhost:8081",
     "http://localhost:8082",
+    "exp://localhost:8081",
 ]
 
 app.add_middleware(
@@ -100,6 +103,8 @@ app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
+app.include_router(categories_router, prefix="/api/v1")
+app.include_router(homepage_router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -120,6 +125,8 @@ def root():
             "notifications": "/api/v1/notifications",
             "export": "/api/v1/export",
             "health": "/api/v1/health",
+            "categories": "/api/v1/categories",
+            "homepage": "/api/v1/homepage",
         }
     }
 

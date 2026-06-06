@@ -84,6 +84,7 @@ async def register(user_in: UserRegisterSchema, db: AsyncSession = Depends(get_d
     
     db.add(new_user)
     await db.flush()  # to get new_user.id
+    await db.commit()
     
     # Generate access token
     token = create_access_token(subject=new_user.email)
@@ -114,6 +115,7 @@ async def reset_password(user_in: ResetPasswordSchema, db: AsyncSession = Depend
     
     hashed_pwd = get_password_hash(user_in.new_password)
     user.hashed_password = hashed_pwd
+    await db.commit()
     
     return {"message": "Şifreniz başarıyla güncellendi."}
 
